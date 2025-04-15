@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Task Manager</title>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+        font-family: 'Inter', sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #121212;
+        color: #ffffff;
+        text-align: center;
+    }
+    
+
+        .login-container {
+            background-color: #1e1e1e;
+            padding: 20px 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 400px;
+            color: #ffffff;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .login-container h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background-color: #2c2c2c;
+            color: #ffffff;
+            font-size: 14px;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #0078d7;
+        }
+        .header {
+            background-color: #1f1f1f;
+            padding: 10px 20px;
+            color: white;
+        }
+
+        .header_content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+    }
+
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-decoration: none;
+            color: white;
+        }
+
+
+        .nav_list {
+        list-style: none;
+        display: flex;
+        margin: 0;
+        padding: 0;
+        }
+
+        .nav_item {
+            margin: 0px 10px;
+        }
+
+        .nav_link {
+            text-decoration: none;
+            color: white;
+            font-weight: bold;
+        }
+
+       
+
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            cursor: pointer;
+        }
+
+
+        @media (max-width: 768px) {
+            .nav {
+            display: none;
+            }
+
+            .hamburger {
+            display: flex;
+            }
+        }
+        .login-btn {
+            width: 100%;
+            padding: 10px;
+            background-color: #0078d7;
+            border: none;
+            border-radius: 4px;
+            color: #ffffff;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .login-btn:hover {
+            background-color: #005bb5;
+        }
+
+        .forgot-password {
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .forgot-password a {
+            color: #0078d7;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .forgot-password a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header_content">
+
+            <a href="#" class="logo">AI Task Manager</a>
+
+            <nav class="nav">
+                <ul class="nav_list">
+                    <li class="nav_item">
+                        <a href="#" class="nav_link">Home</a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="hamburger">
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+            </div>
+        </div>
+    </header>
+    <div class="login-container">
+        <h1>Developer Login</h1>
+        <form>
+            <div class="form-group">
+                <label for="employee-id">Employee ID</label>
+                <input type="text" id="employee-id" name="employee-id" placeholder="Enter your Employee ID" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter your Password" required>
+            </div>
+            <button type="submit" class="login-btn">Login</button>
+        </form>
+        <div class="forgot-password">
+            <a href="#">Forgot Password?</a>
+        </div>
+    </div>
+</body>
+</html>
