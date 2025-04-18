@@ -14,7 +14,6 @@
         font-family: 'Inter', sans-serif;
         margin: 0;
         padding: 0;
-        background-color: #121212;
         color: #ffffff;
         text-align: center;
     }
@@ -102,7 +101,14 @@
             font-weight: bold;
         }
 
-       
+        .section {
+    background-image: url("/static/section.png");
+    height: 100vh;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+    padding: 20px;
+}
 
         .hamburger {
             display: none;
@@ -149,6 +155,11 @@
         .forgot-password a:hover {
             text-decoration: underline;
         }
+        .flash-messages {
+        color: #ff5555;
+        text-align: center;
+        margin-bottom: 20px;
+    }
     </style>
 </head>
 <body>
@@ -172,22 +183,34 @@
             </div>
         </div>
     </header>
-    <div class="login-container">
-        <h1>Developer Login</h1>
-        <form>
-            <div class="form-group">
-                <label for="employee-id">Employee ID</label>
-                <input type="text" id="employee-id" name="employee-id" placeholder="Enter your Employee ID" required>
+    <div class="section">
+        <div class="login-container">
+            <h1>{{ role|replace('_', ' ')|title }}</h1>
+        
+            {% if get_flashed_messages() %}
+            <div class="flash-messages">
+                {% for message in get_flashed_messages() %}
+                    {{ message }}
+                {% endfor %}
             </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" placeholder="Enter your Password" required>
+            {% endif %}
+            <form>
+                <div class="form-group">
+                    <label for="employee-id">Employee ID</label>
+                    <input type="text" id="employee-id" name="employee-id" placeholder="Enter your Employee ID" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Enter your Password" required>
+                </div>
+                <button type="submit" class="login-btn">Login</button>
+            </form>
+            <div class="forgot-password">
+                <a href="#">Forgot Password?</a>
             </div>
-            <button type="submit" class="login-btn">Login</button>
-        </form>
-        <div class="forgot-password">
-            <a href="#">Forgot Password?</a>
         </div>
+
     </div>
+    
 </body>
 </html>

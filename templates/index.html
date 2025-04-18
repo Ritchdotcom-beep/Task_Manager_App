@@ -58,7 +58,7 @@
         display: none;
     }
     .section {
-    background-image: url("/templates/section.png");
+    background-image: url("/static/section.png");
     height: calc(100vh - 80px);
     background-size: cover;
     background-position: center;
@@ -133,9 +133,9 @@
         <h1>PLEASE SELECT YOUR ROLE TO LOGIN</h1>
 
         <div class="button-container">
-            <a href="/login" class="button">Developer</a>
-            <a href="/admin" class="button">Project Manager</a>
-            <a href="/admin" class="button">Human Resource</a>
+            <a href="{{ url_for('select_role', role='developer') }}" class="button">Developer</a>
+            <a href="{{ url_for('select_role', role='project_manager') }}" class="button">Project Manager</a>
+            <a href="{{ url_for('select_role', role='human_resource') }}" class="button">Human Resource</a>
         </div>
 
     </div>
