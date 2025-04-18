@@ -14,7 +14,6 @@
         font-family: 'Inter';
         margin: 0;
         padding: 0;
-        background-color: #121212;
         color: #ffffff;
         text-align: center;
     }
@@ -58,7 +57,14 @@
     .hamburger {
         display: none;
     }
-
+    .section {
+    background-image: url("/templates/section.png");
+    height: calc(100vh - 80px);
+    background-size: cover;
+    background-position: center;
+    position: relative;
+    padding: 20px;
+}
     h1 {
         margin-top: 50px;
         font-size: 2rem;
@@ -123,11 +129,19 @@
             </div>
         </div>
     </header>
-    <h1>PLEASE SELECT YOUR ROLE TO LOGIN</h1>
-    <div class="button-container">
-        <a href="/login" class="button">Developer</a>
-        <a href="/admin" class="button">Project Manager</a>
-        <a href="/admin" class="button">Human Resource</a>
+    <div class="section">
+        <h1>PLEASE SELECT YOUR ROLE TO LOGIN</h1>
+
+        <div class="button-container">
+            <a href="/login" class="button">Developer</a>
+            <a href="/admin" class="button">Project Manager</a>
+            <a href="/admin" class="button">Human Resource</a>
+        </div>
+
     </div>
+    
+  
+    
+    
 </body>
 </html>
