@@ -1,5 +1,6 @@
 # main_app.py
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 import os
 import requests
 import json
@@ -146,63 +147,51 @@ def login():
         return redirect(url_for('index'))
     
     role = session['selected_role']
-    print(f"Login attempt for role: {role}")
-    
+    print(f"\n--- LOGIN ATTEMPT ---\nRole selected: {role}")
+
     if request.method == 'POST':
         emp_id = request.form.get('emp_id')
         password = request.form.get('password')
-        print(f"Login attempt with emp_id: {emp_id}")
-        
-        # Attempt authentication
-        print("Calling authenticate_employee...")
+        print(f"Attempting login for: {emp_id}")
+
         result = authenticate_employee(emp_id, password)
-        print(f"Authentication result: {result}")
-        
-        if not result or 'authenticated' not in result or not result['authenticated']:
-            print("Authentication failed")
+        print(f"Auth result: {result}")
+
+        if not result or not result.get('authenticated'):
             flash('Invalid employee ID or password')
             return render_template('login.html', role=role)
-        
-        print("Authentication successful")
+
         employee = result['employee']
-        print(f"Employee data: {employee}")
-        
-        # Compare normalized roles
-        normalized_db_role = employee['role'].lower().replace(' ', '_')
-        print(f"Normalized role: {normalized_db_role}, Selected role: {role}")
-        
-        if normalized_db_role != role:
-            print("Role mismatch")
+        print(f"Employee data received: {employee}")
+
+        # Case-insensitive role comparison
+        if employee['role'].lower() != role.lower():
             flash(f'This employee ID is not registered as a {role.replace("_", " ")}')
             return render_template('login.html', role=role)
-        
-        # Store employee info in session
-        session['emp_id'] = emp_id
-        session['role'] = employee['role']
-        session['name'] = employee['name']
-        session['email'] = employee['email']
-        
-        print(f"Is first login? {employee.get('is_first_login')}")
-        
-        # IMPORTANT: Check if is_first_login might be a string instead of boolean
-        is_first_login = employee.get('is_first_login')
-        if isinstance(is_first_login, str):
-            is_first_login = is_first_login.lower() == 'true'
-        
-        # If first login, redirect to password change page
-        if is_first_login:
-            print("Redirecting to change password page")
+
+        # Store session data
+        session.update({
+            'emp_id': emp_id,
+            'role': employee['role'],
+            'name': employee['name'],
+            'email': employee['email']
+        })
+
+        # Debug print session data
+        print(f"\n--- SESSION DATA ---\n{session}\n")
+
+        # Handle first login (using get() with True default)
+        first_login = employee.get('is_first_login', True)
+        print(f"First login status: {first_login} (Type: {type(first_login)})")
+
+        if first_login:
+            print("Redirecting to change_password")
             return redirect(url_for('change_password'))
-        
-        # Otherwise redirect to appropriate dashboard
-        print(f"Redirecting to {role} dashboard")
-        if role == 'developer':
-            return redirect(url_for('developer_dashboard'))
-        elif role == 'project_manager':
-            return redirect(url_for('manager_dashboard'))
-        else:
-            return redirect(url_for('hr_dashboard'))
-    
+
+        # Regular redirect based on role
+        print(f"Redirecting to {role}_dashboard")
+        return redirect(url_for(f'{role}_dashboard'))
+
     return render_template('login.html', role=role)
 
 @app.route('/change_password', methods=['GET', 'POST'])
@@ -252,7 +241,10 @@ def change_password():
 
 @app.route('/developer_dashboard')
 def developer_dashboard():
-    if 'emp_id' not in session or session['role'] != 'developer':
+    if 'emp_id' not in session:
+        return redirect(url_for('index'))
+    normalized_role = session['role'].lower().replace(' ', '_')
+    if normalized_role != 'developer':
         return redirect(url_for('index'))
     return render_template('developer_dashboard.html', employee=session)
 
@@ -349,6 +341,17 @@ def admin_dashboard():
     employees = get_all_employees()
     
     return render_template('admin_dashboard.html', employees=employees, current_user=session)
+
+@app.route('/debug_employee/<emp_id>')
+def debug_employee(emp_id):
+    employee = get_employee(emp_id)
+    if not employee:
+        return "Employee not found", 404
+    return jsonify({
+        'data': employee,
+        'is_first_login_type': str(type(employee.get('is_first_login'))),
+        'role_type': str(type(employee.get('role')))
+    })
 
 @app.route('/logout')
 def logout():

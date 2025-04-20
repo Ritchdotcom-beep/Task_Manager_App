@@ -194,10 +194,10 @@
                 {% endfor %}
             </div>
             {% endif %}
-            <form>
+            <form method="POST" action="{{ url_for('login') }}">
                 <div class="form-group">
-                    <label for="employee-id">Employee ID</label>
-                    <input type="text" id="employee-id" name="employee-id" placeholder="Enter your Employee ID" required>
+                    <label for="emp_id">Employee ID</label>
+                    <input type="text" id="emp_id" name="emp_id" placeholder="Enter your Employee ID" required>
                 </div>
                 <div class="form-group">
                     <label for="password">Password</label>

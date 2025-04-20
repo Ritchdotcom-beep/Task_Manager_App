@@ -1,4 +1,5 @@
 # employee_service.py
+
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -49,17 +50,16 @@ class Employee(db.Model):
     
     def to_dict(self):
         return {
-            'emp_id': self.emp_id,
-            'name': self.name,
-            'email': self.email,
-            'role': self.role,
-            'is_first_login': self.is_first_login,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'last_login': self.last_login.isoformat() if self.last_login else None
-        }
-
+        'emp_id': self.emp_id,
+        'name': self.name,
+        'email': self.email,
+        'role': self.role.strip().lower(),  # Simplified role format
+        'is_first_login': bool(self.is_first_login),  # Ensure boolean
+        'created_at': self.created_at.isoformat() if self.created_at else None,
+        'last_login': self.last_login.isoformat() if self.last_login else None
+    }
 # Function to generate random password
-def generate_random_password(length=10):
+def generate_random_password(length=4):
     characters = string.ascii_letters + string.digits + string.punctuation
     return ''.join(random.choice(characters) for _ in range(length))
 
