@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - Task Manager</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #121212;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      min-width: 1200px; /* Ensure minimum width for the entire page */
+    }
+    
+    .header {
+      background-color: #1f1f1f;
+      padding: 10px 20px;
+      color: white;
+    }
+
+    .header_content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      font-size: 1.5rem;
+      font-weight: bold;
+      text-decoration: none;
+      color: white;
+    }
+
+    .nav_list {
+      list-style: none;
+      display: flex;
+      margin: 0;
+      padding: 0;
+    }
+
+    .nav_item {
+      margin: 0px 10px;
+    }
+
+    .nav_link {
+      text-decoration: none;
+      color: white;
+      font-weight: bold;
+    }
+    
+    .container {
+      padding: 20px;
+      width: 100%;
+      max-width: 100%;
+    }
+    
+    .dashboard-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .create-btn {
+      background-color: #0d6efd;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      padding: 8px 16px;
+      font-weight: bold;
+    }
+    
+    .stats-container {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .stat-card {
+      background-color: #1e1e1e;
+      border-radius: 8px;
+      padding: 15px;
+      flex: 1;
+    }
+    
+    .stat-title {
+      color: #aaa;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: white;
+    }
+    
+    .employees-table {
+      width: 100%;
+      background-color: #1e1e1e;
+      border-radius: 8px;
+      overflow-x: auto; /* Allow horizontal scrolling if needed */
+    }
+    
+    .employees-table table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed; /* Use fixed table layout */
+    }
+    
+    .employees-table th {
+      text-align: left;
+      padding: 12px 15px;
+      background-color: #1e1e1e;
+      color: white;
+      border-bottom: 1px solid #333;
+    }
+    
+    .employees-table th:nth-child(1) { width: 10%; } /* Employee ID */
+    .employees-table th:nth-child(2) { width: 15%; } /* Name */
+    .employees-table th:nth-child(3) { width: 20%; } /* Email */
+    .employees-table th:nth-child(4) { width: 10%; } /* Role */
+    .employees-table th:nth-child(5) { width: 15%; } /* Created At */
+    .employees-table th:nth-child(6) { width: 15%; } /* Last Login */
+    .employees-table th:nth-child(7) { width: 15%; } /* Actions - make wider */
+    
+    .employees-table tr {
+      border-bottom: 1px solid #333;
+    }
+    
+    .employees-table td {
+      padding: 12px 15px;
+      color: white;
+      white-space: nowrap; /* Prevent text wrapping in cells */
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .action-buttons {
+      display: flex;
+      gap: 10px;
+      white-space: nowrap;
+    }
+    
+    .action-btn {
+      padding: 5px 10px;
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+      min-width: 65px; /* Set minimum width for buttons */
+      cursor: pointer;
+    }
+    
+    .edit-btn {
+      background-color: #0d6efd;
+      color: white;
+    }
+    
+    .delete-btn {
+      background-color: #dc3545;
+      color: white;
+    }
+    
+    .alert {
+      background-color: #ffd700; /* Gold color */
+      color: #000; /* Black text for contrast */
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 5px;
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+      box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); /* Golden glow effect */
+      animation: glow 1.5s infinite alternate;
+    }
+    
+    @keyframes glow {
+      from {
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+      }
+      to {
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+      }
+    }
+    
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 20px;
+      color: #000;
+      cursor: pointer;
+    }
+    
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header_content">
+      <a href="#" class="logo">AI Task Manager</a>
+      <nav>
+        <ul class="nav_list">
+          <li class="nav_item"><a href="#" class="nav_link">Dashboard</a></li>
+          <li class="nav_item"><a href="{{ url_for('logout') }}" class="nav_link">Logout</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="dashboard-title">
+      <h2>Admin Dashboard</h2>
+      <a href="{{ url_for('create_employee') }}">
+        <button class="create-btn">Create Employee</button>
+      </a>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for message in messages %}
+        <div class="alert">
+          {{ message }}
+          <button class="close-btn">&times;</button>
+        </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="stats-container">
+      <div class="stat-card">
+        <div class="stat-title">Total Employees</div>
+        <div class="stat-value">{{ employees|length }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Developers</div>
+        <div class="stat-value">{{ employees|selectattr('role', 'equalto', 'developer')|list|length }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Project Managers</div>
+        <div class="stat-value">{{ employees|selectattr('role', 'equalto', 'project manager')|list|length }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">HR Staff</div>
+        <div class="stat-value">{{ employees|selectattr('role', 'equalto', 'human resource')|list|length }}</div>
+      </div>
+    </div>
+
+    <div class="employees-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Employee ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Created At</th>
+            <th>Last Login</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for employee in employees %}
+          <tr>
+            <td>{{ employee.emp_id }}</td>
+            <td>{{ employee.name }}</td>
+            <td>{{ employee.email }}</td>
+            <td>{{ employee.role }}</td>
+            <td>{{ employee.created_at }}</td>
+            <td>{{ employee.last_login }}</td>
+            <td>
+              <div class="action-buttons">
+                <a href="{{ url_for('edit_employee', emp_id=employee.emp_id) }}">
+                  <button class="action-btn edit-btn">Edit</button>
+                </a>
+                {% if employee.emp_id != current_user.emp_id %}
+                <form action="{{ url_for('admin_delete_employee', emp_id=employee.emp_id) }}" method="post" style="display:inline;">
+                  <button type="submit" class="action-btn delete-btn" onclick="return confirm('Are you sure you want to delete this employee?');">Delete</button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // Close alert message
+    document.addEventListener('DOMContentLoaded', function() {
+      const closeButtons = document.querySelectorAll('.close-btn');
+      closeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          this.parentElement.classList.add('hidden');
+        });
+      });
+    });
+  </script>
+</body>
+</html>

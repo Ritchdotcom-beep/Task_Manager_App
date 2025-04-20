@@ -1,59 +1,135 @@
+# main_app.py
 from flask import Flask, render_template, request, redirect, url_for, session, flash
-from flask_sqlalchemy import SQLAlchemy
-from dotenv import load_dotenv
 import os
-import string
-import random
-from datetime import datetime
-from werkzeug.security import generate_password_hash, check_password_hash
+import requests
+import json
+from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
+
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev_key_for_testing')
 
-# Add the database configuration
-DATABASE_URL = os.environ.get('DATABASE_URL')
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+# Employee service configuration
+EMPLOYEE_SERVICE_URL = os.environ.get('EMPLOYEE_SERVICE_URL', 'http://localhost:5001/api')
+API_KEY = os.environ.get('API_KEY', 'dev_api_key')
 
-app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Helper functions for API calls
+def api_headers():
+    key = os.environ.get('API_KEY', 'dev_api_key')
+    print(f"Using API key: {key}")  # Debug line
+    return {'X-API-KEY': key, 'Content-Type': 'application/json'}
 
-# Initialize SQLAlchemy
-db = SQLAlchemy(app)
-class Employee(db.Model):
-    __tablename__ = 'employees'
-    
-    emp_id = db.Column(db.String(20), primary_key=True)
-    password_hash = db.Column(db.String(255), nullable=False)
-    is_first_login = db.Column(db.Boolean, default=True)
-    role = db.Column(db.String(20), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_login = db.Column(db.DateTime, nullable=True)
-    
-    def __repr__(self):
-        return f'<Employee {self.emp_id}>'
-    
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-    
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
-    
-# Function to generate random password
-def generate_random_password(length=5):
-    characters = string.ascii_letters + string.digits + string.punctuation
-    return ''.join(random.choice(characters) for _ in range(length))   
+def get_employee(emp_id):
+    response = requests.get(f'{EMPLOYEE_SERVICE_URL}/employees/{emp_id}', headers=api_headers())
+    if response.status_code == 200:
+        return response.json()
+    return None
 
+def authenticate_employee(emp_id, password):
+    data = {'emp_id': emp_id, 'password': password}
+    headers = api_headers()
+    print(f"Sending auth request to {EMPLOYEE_SERVICE_URL}/authenticate")
+    print(f"Auth request data: {data}")
+    
+    try:
+        response = requests.post(f'{EMPLOYEE_SERVICE_URL}/authenticate', json=data, headers=headers)
+        print(f"Auth response status: {response.status_code}")
+        print(f"Auth response text: {response.text}")
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"Parsed response: {result}")
+            return result
+        else:
+            print(f"Error response headers: {response.headers}")
+            print(f"Error response body: {response.text}")
+            return {'authenticated': False, 'reason': f'API error: {response.status_code}'}
+    except Exception as e:
+        print(f"Exception during authentication: {str(e)}")
+        return {'authenticated': False, 'reason': f'Exception: {str(e)}'}
 
+def change_employee_password(emp_id, current_password, new_password):
+    data = {
+        'emp_id': emp_id,
+        'current_password': current_password,
+        'new_password': new_password
+    }
+    response = requests.post(f'{EMPLOYEE_SERVICE_URL}/change_password', json=data, headers=api_headers())
+    return response.json() if response.status_code == 200 else None
+
+def get_all_employees():
+    response = requests.get(f'{EMPLOYEE_SERVICE_URL}/employees', headers=api_headers())
+    if response.status_code == 200:
+        return response.json()
+    return []
+
+def create_new_employee(emp_id, name, email, role):
+    data = {
+        'emp_id': emp_id,
+        'name': name,
+        'email': email,
+        'role': role
+    }
+    response = requests.post(f'{EMPLOYEE_SERVICE_URL}/employees', json=data, headers=api_headers())
+    if response.status_code == 201:
+        return response.json()
+    return None
+
+def update_employee(emp_id, data):
+    response = requests.put(f'{EMPLOYEE_SERVICE_URL}/employees/{emp_id}', json=data, headers=api_headers())
+    if response.status_code == 200:
+        return response.json()
+    return None
+
+def delete_employee(emp_id):
+    response = requests.delete(f'{EMPLOYEE_SERVICE_URL}/employees/{emp_id}', headers=api_headers())
+    return response.status_code == 200
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
+@app.route("/admin")
+def admin_login_page():
+    """Special route for admin login that bypasses role selection"""
+    return render_template("admin_login.html")
 
-# Route to select role and redirect to login
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        emp_id = request.form.get('emp_id')
+        password = request.form.get('password')
+        
+        # Attempt authentication
+        result = authenticate_employee(emp_id, password)
+        
+        if not result['authenticated']:
+            flash('Invalid employee ID or password')
+            return render_template('admin_login.html')
+        
+        employee = result['employee']
+        
+        if employee['role'] != 'admin':
+            flash('This employee ID is not registered as an admin')
+            return render_template('admin_login.html')
+        
+        # Store employee info in session
+        session['emp_id'] = emp_id
+        session['role'] = employee['role']
+        session['name'] = employee['name']
+        session['email'] = employee['email']
+        
+        # If first login, redirect to password change page
+        if employee['is_first_login']:
+            return redirect(url_for('change_password'))
+        
+        # Direct to admin dashboard
+        return redirect(url_for('admin_dashboard'))
+    
+    return render_template('admin_login.html')
+
 @app.route('/select_role/<role>')
 def select_role(role):
     if role not in ['developer', 'project_manager', 'human_resource']:
@@ -63,7 +139,6 @@ def select_role(role):
     session['selected_role'] = role
     return redirect(url_for('login'))
 
-# Route for login with role-specific handling
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if 'selected_role' not in session:
@@ -71,70 +146,88 @@ def login():
         return redirect(url_for('index'))
     
     role = session['selected_role']
+    print(f"Login attempt for role: {role}")
     
     if request.method == 'POST':
         emp_id = request.form.get('emp_id')
         password = request.form.get('password')
+        print(f"Login attempt with emp_id: {emp_id}")
         
-        employee = Employee.query.filter_by(emp_id=emp_id).first()
+        # Attempt authentication
+        print("Calling authenticate_employee...")
+        result = authenticate_employee(emp_id, password)
+        print(f"Authentication result: {result}")
         
-        if not employee:
-            flash('Employee ID not found')
+        if not result or 'authenticated' not in result or not result['authenticated']:
+            print("Authentication failed")
+            flash('Invalid employee ID or password')
             return render_template('login.html', role=role)
         
-        if employee.role != role.replace('_', ' '):
+        print("Authentication successful")
+        employee = result['employee']
+        print(f"Employee data: {employee}")
+        
+        # Compare normalized roles
+        normalized_db_role = employee['role'].lower().replace(' ', '_')
+        print(f"Normalized role: {normalized_db_role}, Selected role: {role}")
+        
+        if normalized_db_role != role:
+            print("Role mismatch")
             flash(f'This employee ID is not registered as a {role.replace("_", " ")}')
             return render_template('login.html', role=role)
         
-        if employee and employee.check_password(password):
-            session['emp_id'] = emp_id
-            session['role'] = employee.role
-            
-            # Update last login timestamp
-            employee.last_login = datetime.utcnow()
-            db.session.commit()
-            
-            # If first login, redirect to password change page
-            if employee.is_first_login:
-                return redirect(url_for('change_password'))
-            
-            # Otherwise redirect to appropriate dashboard based on role
-            if role == 'developer':
-                return redirect(url_for('developer_dashboard'))
-            elif role == 'project_manager':
-                return redirect(url_for('manager_dashboard'))
-            else:
-                return redirect(url_for('hr_dashboard'))
+        # Store employee info in session
+        session['emp_id'] = emp_id
+        session['role'] = employee['role']
+        session['name'] = employee['name']
+        session['email'] = employee['email']
+        
+        print(f"Is first login? {employee.get('is_first_login')}")
+        
+        # IMPORTANT: Check if is_first_login might be a string instead of boolean
+        is_first_login = employee.get('is_first_login')
+        if isinstance(is_first_login, str):
+            is_first_login = is_first_login.lower() == 'true'
+        
+        # If first login, redirect to password change page
+        if is_first_login:
+            print("Redirecting to change password page")
+            return redirect(url_for('change_password'))
+        
+        # Otherwise redirect to appropriate dashboard
+        print(f"Redirecting to {role} dashboard")
+        if role == 'developer':
+            return redirect(url_for('developer_dashboard'))
+        elif role == 'project_manager':
+            return redirect(url_for('manager_dashboard'))
         else:
-            flash('Invalid employee ID or password')
+            return redirect(url_for('hr_dashboard'))
     
     return render_template('login.html', role=role)
 
-# Route for changing password
 @app.route('/change_password', methods=['GET', 'POST'])
 def change_password():
     if 'emp_id' not in session:
         return redirect(url_for('index'))
+    
+    # Add debug logging
+    print(f"Reached change_password route for employee {session['emp_id']}")
     
     if request.method == 'POST':
         current_password = request.form.get('current_password')
         new_password = request.form.get('new_password')
         confirm_password = request.form.get('confirm_password')
         
-        employee = Employee.query.filter_by(emp_id=session['emp_id']).first()
-        
-        if not employee.check_password(current_password):
-            flash('Current password is incorrect')
-            return render_template('change_password.html')
-        
         if new_password != confirm_password:
             flash('New passwords do not match')
             return render_template('change_password.html')
         
-        # Update password and set first_login to False
-        employee.set_password(new_password)
-        employee.is_first_login = False
-        db.session.commit()
+        # Call API to change password
+        result = change_employee_password(session['emp_id'], current_password, new_password)
+        
+        if not result or not result.get('success'):
+            flash('Current password is incorrect')
+            return render_template('change_password.html')
         
         flash('Password changed successfully')
         
@@ -144,31 +237,37 @@ def change_password():
             return redirect(url_for('developer_dashboard'))
         elif role == 'project_manager':
             return redirect(url_for('manager_dashboard'))
+        elif role == 'admin':
+            return redirect(url_for('admin_dashboard'))
         else:
             return redirect(url_for('hr_dashboard'))
     
-    return render_template('change_password.html', first_login=Employee.query.filter_by(emp_id=session['emp_id']).first().is_first_login)
+    # Get employee to check first_login status
+    employee = get_employee(session['emp_id'])
+    first_login = employee['is_first_login'] if employee else False
+    
+    print(f"Employee first_login status: {first_login}")
+    
+    return render_template('change_password.html', first_login=first_login)
 
-# Role-specific dashboards
 @app.route('/developer_dashboard')
 def developer_dashboard():
     if 'emp_id' not in session or session['role'] != 'developer':
         return redirect(url_for('index'))
-    return render_template('developer_dashboard.html')
+    return render_template('developer_dashboard.html', employee=session)
 
 @app.route('/manager_dashboard')
 def manager_dashboard():
     if 'emp_id' not in session or session['role'] != 'project manager':
         return redirect(url_for('index'))
-    return render_template('manager_dashboard.html')
+    return render_template('manager_dashboard.html', employee=session)
 
 @app.route('/hr_dashboard')
 def hr_dashboard():
     if 'emp_id' not in session or session['role'] != 'human resource':
         return redirect(url_for('index'))
-    return render_template('hr_dashboard.html')
+    return render_template('hr_dashboard.html', employee=session)
 
-# Admin route to create a new employee
 @app.route('/admin/create_employee', methods=['GET', 'POST'])
 def create_employee():
     if 'emp_id' not in session or session['role'] != 'admin':
@@ -177,57 +276,84 @@ def create_employee():
     
     if request.method == 'POST':
         emp_id = request.form.get('emp_id')
+        name = request.form.get('name')
+        email = request.form.get('email')
         role = request.form.get('role')
         
-        # Check if employee already exists
-        existing_employee = Employee.query.filter_by(emp_id=emp_id).first()
-        if existing_employee:
-            flash('Employee ID already exists')
+        # Call API to create employee
+        result = create_new_employee(emp_id, name, email, role)
+        
+        if not result:
+            flash('Failed to create employee')
             return render_template('create_employee.html')
         
-        # Generate random password
-        temp_password = generate_random_password()
-        
-        # Create new employee
-        new_employee = Employee(emp_id=emp_id, role=role)
-        new_employee.set_password(temp_password)
-        
-        db.session.add(new_employee)
-        db.session.commit()
-        
-        flash(f'Employee created with ID: {emp_id} and temporary password: {temp_password}')
+        flash(f'Employee created with ID: {emp_id} and temporary password: {result["temp_password"]}')
         return redirect(url_for('admin_dashboard'))
     
     return render_template('create_employee.html')
 
-# Admin dashboard
+@app.route('/admin/edit_employee/<emp_id>', methods=['GET', 'POST'])
+def edit_employee(emp_id):
+    if 'emp_id' not in session or session['role'] != 'admin':
+        flash('Unauthorized access')
+        return redirect(url_for('index'))
+    
+    employee = get_employee(emp_id)
+    if not employee:
+        flash('Employee not found')
+        return redirect(url_for('admin_dashboard'))
+
+    if request.method == 'POST':
+        data = {
+            'name': request.form.get('name'),
+            'email': request.form.get('email'),
+            'role': request.form.get('role')
+        }
+        
+        # Update employee via API
+        result = update_employee(emp_id, data)
+        
+        if not result:
+            flash('Failed to update employee')
+            return render_template('edit_employee.html', employee=employee)
+        
+        flash('Employee updated successfully')
+        return redirect(url_for('admin_dashboard'))
+    
+    return render_template('edit_employee.html', employee=employee)
+
+@app.route('/admin/delete_employee/<emp_id>', methods=['POST'])
+def admin_delete_employee(emp_id):
+    if 'emp_id' not in session or session['role'] != 'admin':
+        flash('Unauthorized access')
+        return redirect(url_for('index'))
+    
+    if emp_id == session['emp_id']:
+        flash('Cannot delete your own account')
+        return redirect(url_for('admin_dashboard'))
+    
+    # Delete employee via API
+    if delete_employee(emp_id):
+        flash('Employee deleted successfully')
+    else:
+        flash('Failed to delete employee')
+    
+    return redirect(url_for('admin_dashboard'))
+
 @app.route('/admin_dashboard')
 def admin_dashboard():
     if 'emp_id' not in session or session['role'] != 'admin':
         return redirect(url_for('index'))
     
-    employees = Employee.query.all()
-    return render_template('admin_dashboard.html', employees=employees)
+    # Get all employees from API
+    employees = get_all_employees()
+    
+    return render_template('admin_dashboard.html', employees=employees, current_user=session)
 
-# Create tables command
-@app.cli.command("create_tables")
-def create_tables():
-    db.create_all()
-    print("Tables created!")
-
-# Create admin user command
-@app.cli.command("create_admin")
-def create_admin():
-    admin = Employee.query.filter_by(emp_id='admin').first()
-    if not admin:
-        temp_password = generate_random_password()
-        admin = Employee(emp_id='admin', role='admin')
-        admin.set_password(temp_password)
-        db.session.add(admin)
-        db.session.commit()
-        print(f"Admin created with temporary password: {temp_password}")
-    else:
-        print("Admin already exists")
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(port=5000, debug=True)
