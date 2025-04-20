@@ -174,7 +174,7 @@ def login():
         print(f"Employee data received: {employee}")
 
         # Case-insensitive role comparison
-        if employee['role'].lower() != role.lower():
+        if employee['role'].lower().replace(' ', '_') != role.lower():
             flash(f'This employee ID is not registered as a {role.replace("_", " ")}')
             return render_template('login.html', role=role)
 
