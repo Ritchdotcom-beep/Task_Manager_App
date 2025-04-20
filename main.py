@@ -5,6 +5,7 @@ import os
 import requests
 import json
 from dotenv import load_dotenv
+from email_services import send_credentials_email
 
 # Load environment variables
 load_dotenv()
@@ -73,10 +74,18 @@ def create_new_employee(emp_id, name, email, role):
         'email': email,
         'role': role
     }
-    response = requests.post(f'{EMPLOYEE_SERVICE_URL}/employees', json=data, headers=api_headers())
+    
+    response = requests.post(
+        f'{EMPLOYEE_SERVICE_URL}/employees',
+        json=data,
+        headers=api_headers()
+    )
+    
     if response.status_code == 201:
-        return response.json()
-    return None
+        return True
+    else:
+        flash(response.json().get('error', 'Failed to create employee'))
+        return False
 
 def update_employee(emp_id, data):
     response = requests.put(f'{EMPLOYEE_SERVICE_URL}/employees/{emp_id}', json=data, headers=api_headers())
@@ -277,9 +286,9 @@ def create_employee():
         
         if not result:
             flash('Failed to create employee')
-            return render_template('create_employee.html')
+        else:
+            flash('Employee created. Credentials sent via email.')
         
-        flash(f'Employee created with ID: {emp_id} and temporary password: {result["temp_password"]}')
         return redirect(url_for('admin_dashboard'))
     
     return render_template('create_employee.html')
@@ -352,6 +361,16 @@ def debug_employee(emp_id):
         'is_first_login_type': str(type(employee.get('is_first_login'))),
         'role_type': str(type(employee.get('role')))
     })
+
+@app.route('/test_email')
+def test_email():
+    test_email = "lolomoakamela@gmail.com"  # Use a real email you can check
+    result = send_credentials_email(
+        email=test_email,
+        emp_id="TEST123",
+        temp_password="testpass123"
+    )
+    return jsonify({"success": result})
 
 @app.route('/logout')
 def logout():

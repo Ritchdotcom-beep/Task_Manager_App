@@ -1,6 +1,6 @@
 # employee_service.py
-
-from flask import Flask, request, jsonify
+from email_services import send_credentials_email
+from flask import Flask, request, jsonify, url_for
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
@@ -102,48 +102,62 @@ def get_employee(emp_id):
 @app.route('/api/employees', methods=['POST'])
 def create_employee():
     if not authenticate_request():
-        return jsonify({'error': 'Unauthorized'}), 401
+        return jsonify({'error': 'Unauthorized'}), 401  # 401 for unauthorized
     
     data = request.json
     
     # Validate required fields
     required_fields = ['emp_id', 'name', 'email', 'role']
     if not all(k in data for k in required_fields):
-        return jsonify({'error': f'Missing required fields. Required: {required_fields}'}), 400
+        return jsonify({
+            'error': f'Missing required fields. Required: {required_fields}'
+        }), 400  # 400 for bad request
     
-    # Check if employee already exists
-    existing_employee = Employee.query.get(data['emp_id'])
-    if existing_employee:
-        return jsonify({'error': 'Employee ID already exists'}), 409
+    # Check for existing employee
+    if Employee.query.get(data['emp_id']):
+        return jsonify({
+            'error': 'Employee ID already exists'
+        }), 409  # 409 for conflict
     
-    # Check if email already exists
-    existing_email = Employee.query.filter_by(email=data['email']).first()
-    if existing_email:
-        return jsonify({'error': 'Email already exists'}), 409
+    # Generate secure password
+    temp_password = generate_random_password(12)
     
-    # Generate temporary password
-    temp_password = data.get('password', generate_random_password())
-    
-    # Create new employee
-    new_employee = Employee(
-        emp_id=data['emp_id'],
-        name=data['name'],
-        email=data['email'],
-        role=data['role'],
-        is_first_login=data.get('is_first_login', True)
-    )
-    new_employee.set_password(temp_password)
-    
-    db.session.add(new_employee)
     try:
+        new_employee = Employee(
+            emp_id=data['emp_id'],
+            name=data['name'],
+            email=data['email'],
+            role=data['role']
+        )
+        new_employee.set_password(temp_password)
+        
+        db.session.add(new_employee)
         db.session.commit()
-        response = new_employee.to_dict()
-        # Only return the password in the response, don't store it
-        response['temp_password'] = temp_password
-        return jsonify(response), 201
+        
+        # Send email with credentials
+        success = send_credentials_email(
+            email=data['email'],
+            emp_id=data['emp_id'],
+            temp_password=temp_password
+        )
+        if not success:
+            print(f"Warning: Email could not be sent to {data['email']}")
+        
+        # Proper 201 response with resource location
+        return jsonify({
+            'success': True,
+            'message': 'Employee created successfully',
+            'employee': new_employee.to_dict(),
+            'links': {
+                'self': url_for('get_employee', emp_id=new_employee.emp_id, _external=True)
+            }
+        }), 201  # 201 for created
+    
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'error': str(e)
+        }), 500  # 500 for server error
 
 @app.route('/api/employees/<emp_id>', methods=['PUT'])
 def update_employee(emp_id):
