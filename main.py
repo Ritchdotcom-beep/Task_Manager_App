@@ -67,13 +67,16 @@ def get_all_employees():
         return response.json()
     return []
 
-def create_new_employee(emp_id, name, email, role):
+def create_new_employee(name, email, role, emp_id=None):
     data = {
-        'emp_id': emp_id,
         'name': name,
         'email': email,
         'role': role
     }
+    
+    # Only include emp_id if it's provided and not empty
+    if emp_id:
+        data['emp_id'] = emp_id
     
     response = requests.post(
         f'{EMPLOYEE_SERVICE_URL}/employees',
@@ -82,10 +85,11 @@ def create_new_employee(emp_id, name, email, role):
     )
     
     if response.status_code == 201:
-        return True
+        result = response.json()
+        return True, result.get('employee', {}).get('emp_id', '')
     else:
-        flash(response.json().get('error', 'Failed to create employee'))
-        return False
+        error_message = response.json().get('error', 'Failed to create employee')
+        return False, error_message
 
 def update_employee(emp_id, data):
     response = requests.put(f'{EMPLOYEE_SERVICE_URL}/employees/{emp_id}', json=data, headers=api_headers())
@@ -276,18 +280,21 @@ def create_employee():
         return redirect(url_for('index'))
     
     if request.method == 'POST':
-        emp_id = request.form.get('emp_id')
+        # Employee ID is now optional
+        emp_id = request.form.get('emp_id', '').strip()
         name = request.form.get('name')
         email = request.form.get('email')
         role = request.form.get('role')
         
         # Call API to create employee
-        result = create_new_employee(emp_id, name, email, role)
+        success, result = create_new_employee(name, email, role, emp_id if emp_id else None)
         
-        if not result:
-            flash('Failed to create employee')
+        if not success:
+            flash(f'Failed to create employee: {result}')
         else:
-            flash('Employee created. Credentials sent via email.')
+            # Get the assigned employee ID for the success message
+            assigned_emp_id = result if isinstance(result, str) else emp_id
+            flash(f'Employee created with ID: {assigned_emp_id}. Credentials sent via email.')
         
         return redirect(url_for('admin_dashboard'))
     

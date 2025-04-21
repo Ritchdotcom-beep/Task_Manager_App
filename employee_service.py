@@ -58,10 +58,32 @@ class Employee(db.Model):
         'created_at': self.created_at.isoformat() if self.created_at else None,
         'last_login': self.last_login.isoformat() if self.last_login else None
     }
+
 # Function to generate random password
 def generate_random_password(length=4):
     characters = string.ascii_letters + string.digits + string.punctuation
     return ''.join(random.choice(characters) for _ in range(length))
+
+# Function to get the next available employee ID
+def get_next_employee_id():
+    # Start from 1000
+    start_id = 1000
+    
+    # Find the highest employee ID currently in use
+    highest_employee = Employee.query.order_by(Employee.emp_id.desc()).first()
+    
+    if highest_employee:
+        try:
+            # Try to convert to integer and add 1
+            current_highest_id = int(highest_employee.emp_id)
+            next_id = current_highest_id + 1
+            return str(next_id)
+        except ValueError:
+            # If current IDs are not numeric, start from start_id
+            return str(start_id)
+    else:
+        # If no employees exist, start from start_id
+        return str(start_id)
 
 # API Authentication - Simple API key check
 def authenticate_request():
@@ -106,18 +128,22 @@ def create_employee():
     
     data = request.json
     
-    # Validate required fields
-    required_fields = ['emp_id', 'name', 'email', 'role']
+    # Validate required fields (emp_id is now optional)
+    required_fields = ['name', 'email', 'role']
     if not all(k in data for k in required_fields):
         return jsonify({
             'error': f'Missing required fields. Required: {required_fields}'
         }), 400  # 400 for bad request
     
-    # Check for existing employee
-    if Employee.query.get(data['emp_id']):
-        return jsonify({
-            'error': 'Employee ID already exists'
-        }), 409  # 409 for conflict
+    # Generate employee ID if not provided
+    if 'emp_id' not in data or not data['emp_id']:
+        data['emp_id'] = get_next_employee_id()
+    else:
+        # Check for existing employee if ID is provided
+        if Employee.query.get(data['emp_id']):
+            return jsonify({
+                'error': 'Employee ID already exists'
+            }), 409  # 409 for conflict
     
     # Generate secure password
     temp_password = generate_random_password(12)
