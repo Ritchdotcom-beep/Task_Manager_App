@@ -72,7 +72,7 @@ class Employee(db.Model):
         }
 
 # Function to generate random password
-def generate_random_password(length=12):  # Increased default length to 12
+def generate_random_password(length=5):  # Increased default length to 12
     characters = string.ascii_letters + string.digits + string.punctuation
     return ''.join(random.choice(characters) for _ in range(length))
 

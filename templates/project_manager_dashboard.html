@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Manager Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <style>
+        .sidebar {
+            min-height: calc(100vh - 64px);
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+        .transition-card {
+            transition: all 0.3s ease;
+        }
+        /* Dark theme overrides */
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+        .dark-card {
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+            border: 1px solid #333;
+        }
+        .dark-sidebar {
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+            border-right: 1px solid #333;
+        }
+        .dark-hover:hover {
+            background-color: #2a2a2a;
+        }
+        .dark-input {
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+            border-color: #444;
+        }
+        .dark-input::placeholder {
+            color: #888;
+        }
+        .dark-input:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+        .dark-select {
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+            border-color: #444;
+        }
+        .dark-select:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-black">
+    <nav class="bg-gray-800 text-white p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-4">
+                <i class="fas fa-project-diagram text-2xl"></i>
+                <h1 class="text-xl font-bold">TaskMaster</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span>Welcome, {{ employee.name }}</span>
+                <a href="/logout" class="bg-indigo-700 px-4 py-2 rounded hover:bg-indigo-800">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto flex">
+        <!-- Sidebar -->
+        <div class="sidebar w-64 dark-sidebar shadow-md p-6">
+            <div class="mb-8">
+                <div class="w-24 h-24 rounded-full bg-indigo-900 mx-auto flex items-center justify-center mb-2">
+                    <i class="fas fa-user text-4xl text-indigo-400"></i>
+                </div>
+                <p class="text-center font-bold">{{ employee.name }}</p>
+                <p class="text-center text-gray-400 text-sm">{{ employee.role }}</p>
+            </div>
+            <ul class="space-y-2">
+                <li class="bg-indigo-900 rounded p-2">
+                    <a href="/project_manager_dashboard" class="flex items-center space-x-2 text-indigo-200">
+                        <i class="fas fa-tachometer-alt"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="dark-hover rounded p-2">
+                    <a href="/task_management" class="flex items-center space-x-2">
+                        <i class="fas fa-tasks"></i>
+                        <span>Task Management</span>
+                    </a>
+                </li>
+                <li class="dark-hover rounded p-2">
+                    <a href="/change_password" class="flex items-center space-x-2">
+                        <i class="fas fa-key"></i>
+                        <span>Change Password</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 p-6">
+            <h2 class="text-2xl font-bold mb-6 text-white">Project Manager Dashboard</h2>
+
+            <!-- Stats Row -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="dark-card rounded-lg shadow p-6 transition-card card-hover">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-gray-400">Team Members</p>
+                            <h3 class="text-3xl font-bold">{{ team_stats.total_members }}</h3>
+                        </div>
+                        <div class="bg-blue-900 p-3 rounded-full">
+                            <i class="fas fa-users text-blue-400"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="dark-card rounded-lg shadow p-6 transition-card card-hover">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-gray-400">Active Tasks</p>
+                            <h3 class="text-3xl font-bold">{{ team_stats.active_tasks }}</h3>
+                        </div>
+                        <div class="bg-green-900 p-3 rounded-full">
+                            <i class="fas fa-clipboard-list text-green-400"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="dark-card rounded-lg shadow p-6 transition-card card-hover">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-gray-400">Success Rate</p>
+                            <h3 class="text-3xl font-bold">{{ "%.1f"|format(team_stats.avg_success) }}%</h3>
+                        </div>
+                        <div class="bg-purple-900 p-3 rounded-full">
+                            <i class="fas fa-chart-pie text-purple-400"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="dark-card rounded-lg shadow p-6 transition-card card-hover">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-gray-400">Your Experience</p>
+                            <h3 class="text-3xl font-bold">{{ employee.experience }}</h3>
+                        </div>
+                        <div class="bg-yellow-900 p-3 rounded-full">
+                            <i class="fas fa-star text-yellow-400"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <!-- Top Skills -->
+                <div class="dark-card rounded-lg shadow p-6">
+                    <h3 class="text-lg font-bold mb-4">Team Skills Distribution</h3>
+                    <div class="h-64">
+                        <canvas id="skillsChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Top Performers -->
+                <div class="dark-card rounded-lg shadow p-6">
+                    <h3 class="text-lg font-bold mb-4">Top Performers</h3>
+                    <div class="space-y-4">
+                        {% for performer in team_stats.top_performers %}
+                        <div class="flex items-center p-3 border border-gray-700 rounded-lg dark-hover">
+                            <div class="w-10 h-10 rounded-full bg-indigo-900 flex items-center justify-center mr-4">
+                                <i class="fas fa-user text-indigo-400"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="font-medium">{{ performer.name }}</p>
+                                <p class="text-sm text-gray-400">Tasks: {{ performer.tasks_completed }}</p>
+                            </div>
+                            <div class="text-right">
+                                <span class="bg-green-900 text-green-200 text-xs font-medium px-2.5 py-0.5 rounded">
+                                    {{ "%.1f"|format(performer.success_rate) }}% Success
+                                </span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% if not team_stats.top_performers %}
+                        <p class="text-gray-400 text-center p-4">No performance data available yet</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Project Types -->
+            <div class="dark-card rounded-lg shadow p-6 mb-8">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold">Available Project Types</h3>
+                    <a href="/task_management" class="bg-indigo-700 text-white px-4 py-2 rounded hover:bg-indigo-800">
+                        <i class="fas fa-plus mr-2"></i>Create Task
+                    </a>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {% for project_type in project_types %}
+                    <div class="border border-gray-700 rounded-lg p-4 dark-hover cursor-pointer transition-card" 
+                         onclick="showProjectTypeDetails('{{ project_type }}')">
+                        <div class="flex justify-between items-start mb-3">
+                            <h4 class="font-medium">{{ project_type|replace('_', ' ')|title }}</h4>
+                            <span class="bg-blue-900 text-blue-200 text-xs font-medium px-2.5 py-0.5 rounded">
+                                {{ project_type_details[project_type]|length }} skills
+                            </span>
+                        </div>
+                        <p class="text-sm text-gray-400 mb-3">
+                            {% set skills = project_type_details[project_type][:3] %}
+                            {{ skills|join(', ') }}
+                            {% if project_type_details[project_type]|length > 3 %}
+                            <span>and {{ project_type_details[project_type]|length - 3 }} more</span>
+                            {% endif %}
+                        </p>
+                        <div class="flex justify-end">
+                            <button class="text-indigo-400 hover:text-indigo-300 text-sm font-medium" 
+                                    onclick="showProjectTypeDetails('{{ project_type }}')">
+                                <i class="fas fa-arrow-right mr-1"></i>Assign Task
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <!-- Task Assignment Section -->
+            <div class="dark-card rounded-lg shadow p-6 mb-8" id="taskAssignmentSection" style="display: none;">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold">Task Assignment</h3>
+                    <button class="text-gray-400 hover:text-gray-300" onclick="hideTaskAssignment()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Task Details Form -->
+                    <div>
+                        <h4 class="font-medium mb-4">Task Details</h4>
+                        <form id="taskDetailsForm">
+                            <div class="mb-4">
+                                <label class="block text-gray-300 text-sm font-bold mb-2" for="taskId">
+                                    Task ID
+                                </label>
+                                <input class="dark-input shadow appearance-none border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:shadow-outline" 
+                                       id="taskId" type="text" placeholder="TASK1234" required>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="block text-gray-300 text-sm font-bold mb-2" for="projectType">
+                                    Project Type
+                                </label>
+                                <input class="dark-input shadow appearance-none border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:shadow-outline" 
+                                       id="projectType" type="text" readonly>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="block text-gray-300 text-sm font-bold mb-2" for="complexity">
+                                    Complexity
+                                </label>
+                                <select class="dark-select shadow appearance-none border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:shadow-outline" 
+                                        id="complexity" required>
+                                    <option value="Low">Low</option>
+                                    <option value="Medium" selected>Medium</option>
+                                    <option value="High">High</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="block text-gray-300 text-sm font-bold mb-2" for="priority">
+                                    Priority
+                                </label>
+                                <select class="dark-select shadow appearance-none border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:shadow-outline" 
+                                        id="priority" required>
+                                    <option value="Low">Low</option>
+                                    <option value="Medium" selected>Medium</option>
+                                    <option value="High">High</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="block text-gray-300 text-sm font-bold mb-2">
+                                    Required Skills
+                                </label>
+                                <div class="bg-gray-800 p-3 rounded max-h-32 overflow-y-auto" id="skillsContainer">
+                                    <!-- Skills will be populated dynamically -->
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center justify-between">
+                                <button class="bg-indigo-700 hover:bg-indigo-800 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" 
+                                        type="button" onclick="getRecommendation()">
+                                    Get Recommendation
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Recommendation Results -->
+                    <div>
+                        <h4 class="font-medium mb-4">Best Employee Match</h4>
+                        <div id="loadingRecommendation" class="hidden">
+                            <div class="text-center py-8">
+                                <i class="fas fa-spinner fa-spin text-indigo-400 text-3xl mb-4"></i>
+                                <p>Finding the best match...</p>
+                            </div>
+                        </div>
+                        
+                        <div id="recommendationResults" class="hidden">
+                            <div class="border border-gray-700 rounded-lg p-4 mb-4">
+                                <div class="flex items-center mb-4">
+                                    <div class="w-12 h-12 bg-indigo-900 rounded-full flex items-center justify-center mr-4">
+                                        <i class="fas fa-user text-indigo-400"></i>
+                                    </div>
+                                    <div>
+                                        <h5 class="font-bold" id="recommendedName"></h5>
+                                        <p class="text-sm text-gray-400" id="recommendedId"></p>
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-2 mb-4">
+                                    <div>
+                                        <p class="text-sm text-gray-400">Skill Match</p>
+                                        <p class="font-bold" id="skillMatch"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-400">Match Score</p>
+                                        <p class="font-bold" id="matchScore"></p>
+                                    </div>
+                                </div>
+                                
+                                <button class="w-full bg-green-700 hover:bg-green-800 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" 
+                                        type="button" onclick="assignTask()">
+                                    Assign Task
+                                </button>
+                            </div>
+                            
+                            <div class="bg-blue-900 border-l-4 border-blue-600 text-blue-200 p-4" role="alert">
+                                <p class="font-bold">Assignment Details</p>
+                                <p>This recommendation is based on skill match, employee experience, past success rate, and current workload.</p>
+                            </div>
+                        </div>
+                        
+                        <div id="noRecommendation" class="hidden">
+                            <div class="bg-yellow-900 border-l-4 border-yellow-600 text-yellow-200 p-4" role="alert">
+                                <p class="font-bold">No Suitable Match Found</p>
+                                <p>We couldn't find an employee with the required skills for this task. Consider modifying the task requirements or checking your team's skill inventory.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Skills Chart
+        document.addEventListener('DOMContentLoaded', function() {
+            const skillsCtx = document.getElementById('skillsChart').getContext('2d');
+            
+            // Set Chart.js defaults for dark theme
+            Chart.defaults.color = '#e0e0e0';
+            Chart.defaults.scale.grid.color = '#333';
+            
+            // Extract skills data from server-side variable
+            const skillsData = {
+                {% for skill, count in team_stats.top_skills.items() %}
+                "{{ skill }}": {{ count }},
+                {% endfor %}
+            };
+            
+            const labels = Object.keys(skillsData);
+            const data = Object.values(skillsData);
+            
+            new Chart(skillsCtx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '# of Employees with Skill',
+                        data: data,
+                        backgroundColor: [
+                            'rgba(99, 102, 241, 0.7)',
+                            'rgba(124, 58, 237, 0.7)',
+                            'rgba(236, 72, 153, 0.7)',
+                            'rgba(239, 68, 68, 0.7)',
+                            'rgba(245, 158, 11, 0.7)',
+                        ],
+                        borderColor: [
+                            'rgba(99, 102, 241, 1)',
+                            'rgba(124, 58, 237, 1)',
+                            'rgba(236, 72, 153, 1)',
+                            'rgba(239, 68, 68, 1)',
+                            'rgba(245, 158, 11, 1)',
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+        });
+        
+        // Store project type details for easy access
+        const projectTypeDetails = {
+            {% for project_type, skills in project_type_details.items() %}
+            "{{ project_type }}": {{ skills|tojson }},
+            {% endfor %}
+        };
+        
+        // Show project type details and task assignment form
+        function showProjectTypeDetails(projectType) {
+            // Set the project type in the form
+            document.getElementById('projectType').value = projectType;
+            
+            // Populate skills container with checkboxes
+            const skillsContainer = document.getElementById('skillsContainer');
+            skillsContainer.innerHTML = '';
+            
+            const skills = projectTypeDetails[projectType] || [];
+            skills.forEach(skill => {
+                const skillDiv = document.createElement('div');
+                skillDiv.className = 'flex items-center mb-2';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'mr-2 skill-checkbox';
+                checkbox.value = skill;
+                checkbox.id = 'skill_' + skill.replace(/\s+/g, '_');
+                checkbox.name = 'skills[]';
+                checkbox.checked = true; // Check by default
+                
+                const label = document.createElement('label');
+                label.htmlFor = checkbox.id;
+                label.textContent = skill;
+                label.className = 'text-sm text-gray-300';
+                
+                skillDiv.appendChild(checkbox);
+                skillDiv.appendChild(label);
+                skillsContainer.appendChild(skillDiv);
+            });
+            
+            // Generate a random task ID
+            const randomId = Math.floor(Math.random() * 10000);
+            document.getElementById('taskId').value = 'TASK' + randomId;
+            
+            // Show the task assignment section
+            document.getElementById('taskAssignmentSection').style.display = 'block';
+            
+            // Reset recommendation sections
+            document.getElementById('recommendationResults').classList.add('hidden');
+            document.getElementById('noRecommendation').classList.add('hidden');
+            document.getElementById('loadingRecommendation').classList.add('hidden');
+            
+            // Scroll to the task assignment section
+            document.getElementById('taskAssignmentSection').scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Hide the task assignment section
+        function hideTaskAssignment() {
+            document.getElementById('taskAssignmentSection').style.display = 'none';
+        }
+        
+        // Get recommendations for the best employee match
+        function getRecommendation() {
+            // Validate form
+            const taskId = document.getElementById('taskId').value;
+            const projectType = document.getElementById('projectType').value;
+            const complexity = document.getElementById('complexity').value;
+            const priority = document.getElementById('priority').value;
+            
+            if (!taskId || !projectType) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            // Get selected skills
+            const selectedSkills = [];
+            document.querySelectorAll('.skill-checkbox:checked').forEach(checkbox => {
+                selectedSkills.push(checkbox.value);
+            });
+            
+            if (selectedSkills.length === 0) {
+                alert('Please select at least one skill');
+                return;
+            }
+            
+            // Show loading
+            document.getElementById('loadingRecommendation').classList.remove('hidden');
+            document.getElementById('recommendationResults').classList.add('hidden');
+            document.getElementById('noRecommendation').classList.add('hidden');
+            
+            // Prepare task data
+            const taskData = {
+                task_id: taskId,
+                project_type: projectType,
+                complexity: complexity,
+                priority: priority,
+                skills: selectedSkills
+            };
+            
+            // Make API request to get recommendation
+            fetch('/api/get_assignment_recommendation', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(taskData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loadingRecommendation').classList.add('hidden');
+                
+                if (data.success && data.recommendations && typeof data.recommendations !== 'string') {
+                    // Show recommendation results
+                    document.getElementById('recommendedName').textContent = data.recommendations.name;
+                    document.getElementById('recommendedId').textContent = `Employee ID: ${data.recommendations.emp_id}`;
+                    document.getElementById('skillMatch').textContent = data.recommendations.skill_match_percentage;
+                    document.getElementById('matchScore').textContent = data.recommendations.score;
+                    
+                    document.getElementById('recommendationResults').classList.remove('hidden');
+                } else {
+                    // Show no recommendation message
+                    document.getElementById('noRecommendation').classList.remove('hidden');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('loadingRecommendation').classList.add('hidden');
+                document.getElementById('noRecommendation').classList.remove('hidden');
+            });
+        }
+        
+        // Assign the task to the recommended employee
+        function assignTask() {
+            // Get task details
+            const taskId = document.getElementById('taskId').value;
+            const projectType = document.getElementById('projectType').value;
+            const complexity = document.getElementById('complexity').value;
+            const priority = document.getElementById('priority').value;
+            
+            // Get selected skills
+            const selectedSkills = [];
+            document.querySelectorAll('.skill-checkbox:checked').forEach(checkbox => {
+                selectedSkills.push(checkbox.value);
+            });
+            
+            // Prepare task data
+            const taskData = {
+                task_id: taskId,
+                project_type: projectType,
+                complexity: complexity,
+                priority: priority,
+                skills: selectedSkills
+            };
+            
+            // Make API request to create and assign task
+            fetch('/api/create_task', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(taskData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Task assigned successfully!');
+                    hideTaskAssignment();
+                } else {
+                    alert('Failed to assign task: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while assigning the task');
+            });
+        }
+    </script>
+
+    <footer class="bg-gray-900 text-gray-300 p-4 mt-8">
+        <div class="container mx-auto text-center">
+            <p>TaskMaster - Project Management System &copy; 2025</p>
+        </div>
+    </footer>
+</body>
+</html>

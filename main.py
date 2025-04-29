@@ -16,6 +16,53 @@ app.secret_key = os.environ.get('SECRET_KEY', 'dev_key_for_testing')
 # Employee service configuration
 EMPLOYEE_SERVICE_URL = os.environ.get('EMPLOYEE_SERVICE_URL', 'http://localhost:5001/api')
 API_KEY = os.environ.get('API_KEY', 'dev_api_key')
+PROJECT_TYPES = {
+    "website_development": ["HTML", "CSS", "JavaScript", "React", "Vue", "Angular"],
+    "mobile_app_development": ["Swift", "Kotlin", "React Native", "Flutter"],
+    "machine_learning": ["Python", "TensorFlow", "PyTorch", "Scikit-learn"],
+    # Add other project types as needed
+}
+# Add to main_app.py
+TASK_SERVICE_URL = os.environ.get('TASK_SERVICE_URL', 'http://localhost:5002/api')
+
+def assign_tasks(tasks):
+    response = requests.post(
+        f'{TASK_SERVICE_URL}/task-service/assign-tasks',
+        json={'tasks': tasks},
+        headers=api_headers()
+    )
+    if response.status_code == 200:
+        return response.json()
+    return None
+
+def get_project_types():
+    """Get all project types from task service with fallback to local definition"""
+    try:
+        response = requests.get(
+            f'{TASK_SERVICE_URL}/task-service/project-types',
+            headers=api_headers()
+        )
+        if response.status_code == 200:
+            return response.json().get('project_types', []), response.json().get('project_type_details', {})
+        return list(PROJECT_TYPES.keys()), PROJECT_TYPES
+    except Exception as e:
+        print(f"Error fetching project types: {str(e)}")
+        return list(PROJECT_TYPES.keys()), PROJECT_TYPES
+
+def get_skills_for_project_type(project_type):
+    """Get required skills for a specific project type"""
+    try:
+        response = requests.get(
+            f'{TASK_SERVICE_URL}/task-service/skills-for-project',
+            params={'project_type': project_type},
+            headers=api_headers()
+        )
+        if response.status_code == 200:
+            return response.json().get('skills', [])
+        return PROJECT_TYPES.get(project_type, [])
+    except Exception as e:
+        print(f"Error fetching skills for project type: {str(e)}")
+        return PROJECT_TYPES.get(project_type, [])
 
 # Helper functions for API calls
 def api_headers():
@@ -67,7 +114,7 @@ def get_all_employees():
         return response.json()
     return []
 
-def create_new_employee(name, email, role, emp_id=None):
+def create_new_employee(name, email, role, skills=None, experience=None, emp_id=None):
     data = {
         'name': name,
         'email': email,
@@ -77,6 +124,14 @@ def create_new_employee(name, email, role, emp_id=None):
     # Only include emp_id if it's provided and not empty
     if emp_id:
         data['emp_id'] = emp_id
+        
+    # Include skills if provided
+    if skills:
+        data['skills'] = skills
+        
+    # Include experience if provided
+    if experience is not None:
+        data['experience'] = experience
     
     response = requests.post(
         f'{EMPLOYEE_SERVICE_URL}/employees',
@@ -238,7 +293,7 @@ def change_password():
         if role == 'developer':
             return redirect(url_for('developer_dashboard'))
         elif role == 'project_manager':
-            return redirect(url_for('manager_dashboard'))
+            return redirect(url_for('project_manager_dashboard'))
         elif role == 'admin':
             return redirect(url_for('admin_dashboard'))
         else:
@@ -259,13 +314,97 @@ def developer_dashboard():
     normalized_role = session['role'].lower().replace(' ', '_')
     if normalized_role != 'developer':
         return redirect(url_for('index'))
-    return render_template('developer_dashboard.html', employee=session)
+    
+    # Fetch complete employee data
+    employee_data = get_employee(session['emp_id'])
+    
+    # Fallback with defaults if needed
+    if not employee_data:
+        employee_data = dict(session)
+        employee_data['success_rate'] = 0.0
+        employee_data['tasks_completed'] = 0
+        employee_data['experience'] = 0
+        employee_data['skills'] = []
+    
+    return render_template('developer_dashboard.html', employee=employee_data)
 
-@app.route('/manager_dashboard')
-def manager_dashboard():
+@app.route('/project_manager_dashboard')
+def project_manager_dashboard():
     if 'emp_id' not in session or session['role'] != 'project manager':
         return redirect(url_for('index'))
-    return render_template('manager_dashboard.html', employee=session)
+    
+    # Fetch complete employee data from the employee service
+    employee_data = get_employee(session['emp_id'])
+    
+    # If employee data couldn't be fetched, use session data as fallback with defaults
+    if not employee_data:
+        employee_data = dict(session)
+        employee_data['success_rate'] = 0.0
+        employee_data['tasks_completed'] = 0
+        employee_data['experience'] = 0
+    
+    # Get all employees for team stats
+    all_employees = get_all_employees()
+    
+    # Calculate team statistics
+    team_stats = {
+        'total_members': len(all_employees),
+        'active_tasks': 0,  # You would get this from your task service
+        'avg_success': sum(emp.get('success_rate', 0) for emp in all_employees) / len(all_employees) if all_employees else 0,
+        'top_skills': {},
+        'top_performers': sorted(
+            [emp for emp in all_employees if emp.get('tasks_completed', 0) > 0],
+            key=lambda x: x.get('success_rate', 0),
+            reverse=True
+        )[:3]  # Top 3 performers
+    }
+    
+    # Calculate skill distribution
+    skill_counts = {}
+    for emp in all_employees:
+        for skill in emp.get('skills', []):
+            skill_counts[skill] = skill_counts.get(skill, 0) + 1
+    team_stats['top_skills'] = dict(sorted(skill_counts.items(), key=lambda item: item[1], reverse=True)[:5])  # Top 5 skills
+    
+    # Get project types from task service
+    project_types, project_type_details = get_project_types()
+    
+    return render_template(
+        'project_manager_dashboard.html',
+        employee=employee_data,
+        team_stats=team_stats,
+        project_types=project_types,
+        project_type_details=project_type_details
+    )
+
+@app.route('/task_management')
+def task_management():
+    if 'emp_id' not in session or session['role'] != 'project manager':
+        return redirect(url_for('index'))
+    
+    # Get project types and their details
+    project_types, project_type_details = get_project_types()
+    
+    # Get all employees for assignment dropdown
+    employees = get_all_employees()
+    
+    return render_template(
+        'task_management.html',
+        project_types=project_types,
+        project_type_details=project_type_details,
+        employees=employees
+    )
+
+    
+    if not result or 'error' in result:
+        return jsonify({'success': False, 'error': 'Failed to assign task'}), 500
+        
+    return jsonify({
+        'success': True,
+        'task': task_data,
+        'assignment': result.get('assignments', {}).get(task_data['task_id'])
+    })
+
 
 @app.route('/hr_dashboard')
 def hr_dashboard():
@@ -286,8 +425,23 @@ def create_employee():
         email = request.form.get('email')
         role = request.form.get('role')
         
-        # Call API to create employee
-        success, result = create_new_employee(name, email, role, emp_id if emp_id else None)
+        # Get skills as a list from the comma-separated input
+        skills_input = request.form.get('skills', '').strip()
+        skills = [skill.strip() for skill in skills_input.split(',')] if skills_input else None
+        
+        # Get experience as an integer
+        experience_input = request.form.get('experience', '').strip()
+        experience = int(experience_input) if experience_input and experience_input.isdigit() else None
+        
+        # Call API to create employee with the new parameters
+        success, result = create_new_employee(
+            name=name,
+            email=email,
+            role=role,
+            skills=skills,
+            experience=experience,
+            emp_id=emp_id if emp_id else None
+        )
         
         if not success:
             flash(f'Failed to create employee: {result}')
@@ -298,7 +452,15 @@ def create_employee():
         
         return redirect(url_for('admin_dashboard'))
     
-    return render_template('create_employee.html')
+    # Get project types for skill suggestions
+    project_types, project_type_details = get_project_types()
+    all_skills = []
+    for skills_list in project_type_details.values():
+        all_skills.extend(skills_list)
+    # Remove duplicates while preserving order
+    unique_skills = list(dict.fromkeys(all_skills))
+    
+    return render_template('create_employee.html', skills=unique_skills)
 
 @app.route('/admin/edit_employee/<emp_id>', methods=['GET', 'POST'])
 def edit_employee(emp_id):
@@ -357,17 +519,111 @@ def admin_dashboard():
     employees = get_all_employees()
     
     return render_template('admin_dashboard.html', employees=employees, current_user=session)
+@app.route('/admin/update_metrics/<emp_id>', methods=['POST'])
+def update_metrics(emp_id):
+    if 'emp_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
+    
+    data = request.json
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+    
+    # Prepare update data
+    update_data = {}
+    if 'tasks_completed' in data:
+        update_data['tasks_completed'] = data['tasks_completed']
+    if 'success_rate' in data:
+        update_data['success_rate'] = data['success_rate']
+    
+    # Update employee via API
+    result = update_employee(emp_id, update_data)
+    
+    if not result:
+        return jsonify({'success': False, 'error': 'Failed to update employee metrics'}), 500
+    
+    return jsonify({'success': True})
 
-@app.route('/debug_employee/<emp_id>')
-def debug_employee(emp_id):
-    employee = get_employee(emp_id)
-    if not employee:
-        return "Employee not found", 404
+# Add this endpoint to main_app.py - ensure it is placed before the 'if __name__ == '__main__':' line
+
+@app.route('/api/create_task', methods=['POST'])
+def create_task():
+    """Create a new task and get assignment recommendations"""
+    if 'emp_id' not in session or session.get('role') != 'project manager':
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+        
+    task_data = request.json
+    # Validate task data
+    required_fields = ['task_id', 'project_type', 'complexity', 'priority']
+    for field in required_fields:
+        if field not in task_data:
+            return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
+    
+    # Get skills for project type if not provided
+    if 'skills' not in task_data or not task_data['skills']:
+        task_data['skills'] = get_skills_for_project_type(task_data['project_type'])
+    
+    # Create list of tasks (API expects an array)
+    tasks = [task_data]
+    
+    # Assign task using the task service
+    result = assign_tasks(tasks)
+    
+    if not result or 'success' not in result or not result['success']:
+        return jsonify({
+            'success': False, 
+            'error': result.get('error', 'Failed to assign task')
+        }), 500
+        
     return jsonify({
-        'data': employee,
-        'is_first_login_type': str(type(employee.get('is_first_login'))),
-        'role_type': str(type(employee.get('role')))
+        'success': True,
+        'task': task_data,
+        'assignment': result.get('assignments', {}).get(task_data['task_id'])
     })
+
+# Add this JavaScript fetch endpoint for the task management page
+# Fix for the get_assignment_recommendation function in main_app.py
+
+@app.route('/api/get_assignment_recommendation', methods=['POST'])
+def get_assignment_recommendation():
+    """Get assignment recommendation for a task without saving it"""
+    if 'emp_id' not in session or session.get('role') != 'project manager':
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+        
+    task_data = request.json
+    tasks = [task_data]
+    
+    # Get skills for project type if not provided
+    if 'skills' not in task_data or not task_data['skills']:
+        task_data['skills'] = get_skills_for_project_type(task_data['project_type'])
+    
+    # Get recommendation without persistence
+    try:
+        result = assign_tasks(tasks)
+        
+        if not result:
+            return jsonify({
+                'success': False, 
+                'error': 'Failed to get recommendation - result is None'
+            }), 500
+        
+        if 'success' not in result or not result['success']:
+            return jsonify({
+                'success': False, 
+                'error': result.get('error', 'Failed to get recommendation')
+            }), 500
+            
+        return jsonify({
+            'success': True,
+            'recommendations': result.get('assignments', {}).get(task_data['task_id'])
+        })
+    except Exception as e:
+        import traceback
+        print(f"Error in get_assignment_recommendation: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': f'Exception: {str(e)}'
+        }), 500
 
 @app.route('/test_email')
 def test_email():
