@@ -75,6 +75,7 @@
     
     .stats-container {
       display: flex;
+      flex-wrap: wrap;
       gap: 20px;
       margin-bottom: 30px;
     }
@@ -84,6 +85,7 @@
       border-radius: 8px;
       padding: 15px;
       flex: 1;
+      min-width: 200px;
     }
     
     .stat-title {
@@ -119,13 +121,16 @@
       border-bottom: 1px solid #333;
     }
     
-    .employees-table th:nth-child(1) { width: 10%; } /* Employee ID */
-    .employees-table th:nth-child(2) { width: 15%; } /* Name */
-    .employees-table th:nth-child(3) { width: 20%; } /* Email */
-    .employees-table th:nth-child(4) { width: 10%; } /* Role */
-    .employees-table th:nth-child(5) { width: 15%; } /* Created At */
-    .employees-table th:nth-child(6) { width: 15%; } /* Last Login */
-    .employees-table th:nth-child(7) { width: 15%; } /* Actions - make wider */
+    /* Updated column widths to accommodate new fields */
+    .employees-table th:nth-child(1) { width: 8%; } /* Employee ID */
+    .employees-table th:nth-child(2) { width: 12%; } /* Name */
+    .employees-table th:nth-child(3) { width: 15%; } /* Email */
+    .employees-table th:nth-child(4) { width: 8%; } /* Role */
+    .employees-table th:nth-child(5) { width: 8%; } /* Experience */
+    .employees-table th:nth-child(6) { width: 10%; } /* Tasks Completed */
+    .employees-table th:nth-child(7) { width: 8%; } /* Success Rate */
+    .employees-table th:nth-child(8) { width: 15%; } /* Skills */
+    .employees-table th:nth-child(9) { width: 16%; } /* Actions */
     
     .employees-table tr {
       border-bottom: 1px solid #333;
@@ -164,6 +169,11 @@
       color: white;
     }
     
+    .metrics-btn {
+      background-color: #198754;
+      color: white;
+    }
+    
     .alert {
       background-color: #00a2ff7c; /* Gold color */
       color: #000; /* Black text for contrast */
@@ -196,6 +206,149 @@
     
     .hidden {
       display: none;
+    }
+    
+    /* Modal styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.7);
+    }
+    
+    .modal-content {
+      background-color: #1e1e1e;
+      margin: 10% auto;
+      padding: 20px;
+      border: 1px solid #333;
+      border-radius: 8px;
+      width: 400px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    }
+    
+    .modal-title {
+      color: white;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #333;
+      padding-bottom: 10px;
+    }
+    
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    .form-label {
+      display: block;
+      margin-bottom: 5px;
+      color: #aaa;
+    }
+    
+    .form-control {
+      width: 100%;
+      padding: 10px;
+      background-color: #2c2c2c;
+      border: 1px solid #444;
+      border-radius: 4px;
+      color: white;
+    }
+    
+    .metrics-form {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    
+    .modal-actions {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 20px;
+    }
+    
+    .cancel-btn {
+      background-color: #6c757d;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      cursor: pointer;
+    }
+    
+    .save-btn {
+      background-color: #0d6efd;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      cursor: pointer;
+    }
+    
+    .skill-badge {
+      display: inline-block;
+      background-color: #2c3e50;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 12px;
+      margin-right: 5px;
+      margin-bottom: 5px;
+      font-size: 12px;
+    }
+    
+    /* Filter and search section */
+    .filters-section {
+      background-color: #1e1e1e;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      align-items: flex-end;
+    }
+    
+    .filter-group {
+      flex: 1;
+      min-width: 200px;
+    }
+    
+    .filter-label {
+      display: block;
+      margin-bottom: 5px;
+      color: #aaa;
+      font-size: 14px;
+    }
+    
+    .filter-control {
+      width: 100%;
+      padding: 8px;
+      background-color: #2c2c2c;
+      border: 1px solid #444;
+      border-radius: 4px;
+      color: white;
+    }
+    
+    .search-btn {
+      background-color: #0d6efd;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      cursor: pointer;
+      height: 38px;
+    }
+    
+    .reset-btn {
+      background-color: #6c757d;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      cursor: pointer;
+      height: 38px;
     }
   </style>
 </head>
@@ -245,38 +398,102 @@
         <div class="stat-value">{{ employees|selectattr('role', 'equalto', 'project manager')|list|length }}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-title">HR Staff</div>
-        <div class="stat-value">{{ employees|selectattr('role', 'equalto', 'human resource')|list|length }}</div>
+        <div class="stat-title">Avg Experience</div>
+        <div class="stat-value">
+          {% set total_exp = employees|map(attribute='experience')|sum %}
+          {% set count = employees|length %}
+          {{ "%.1f"|format(total_exp / count if count > 0 else 0) }} yrs
+        </div>
       </div>
+      <div class="stat-card">
+        <div class="stat-title">Avg Success Rate</div>
+        <div class="stat-value">
+          {% set total_rate = employees|map(attribute='success_rate')|sum %}
+          {% set count = employees|length %}
+          {{ "%.1f"|format(total_rate / count if count > 0 else 0) }}%
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Total Tasks</div>
+        <div class="stat-value">
+          {{ employees|map(attribute='tasks_completed')|sum }}
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Filters Section -->
+    <div class="filters-section">
+      <div class="filter-group">
+        <label class="filter-label">Role</label>
+        <select id="roleFilter" class="filter-control">
+          <option value="">All Roles</option>
+          <option value="developer">Developers</option>
+          <option value="project manager">Project Managers</option>
+          <option value="human resource">HR Staff</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label class="filter-label">Min Experience</label>
+        <input type="number" id="expFilter" class="filter-control" min="0" placeholder="Years">
+      </div>
+      <div class="filter-group">
+        <label class="filter-label">Search</label>
+        <input type="text" id="searchInput" class="filter-control" placeholder="Name, Email, Skills...">
+      </div>
+      <button id="searchBtn" class="search-btn">Search</button>
+      <button id="resetBtn" class="reset-btn">Reset</button>
     </div>
 
     <div class="employees-table">
       <table>
         <thead>
           <tr>
-            <th>Employee ID</th>
+            <th>ID</th>
             <th>Name</th>
             <th>Email</th>
             <th>Role</th>
-            <th>Created At</th>
-            <th>Last Login</th>
+            <th>Experience</th>
+            <th>Tasks</th>
+            <th>Success</th>
+            <th>Skills</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for employee in employees %}
-          <tr>
+          <tr class="employee-row" 
+              data-role="{{ employee.role }}" 
+              data-exp="{{ employee.experience or 0 }}"
+              data-name="{{ employee.name|lower }}"
+              data-email="{{ employee.email|lower }}"
+              data-skills="{{ employee.skills|join(',')|lower if employee.skills else '' }}">
             <td>{{ employee.emp_id }}</td>
             <td>{{ employee.name }}</td>
             <td>{{ employee.email }}</td>
-            <td>{{ employee.role }}</td>
-            <td>{{ employee.created_at }}</td>
-            <td>{{ employee.last_login }}</td>
+            <td>{{ employee.role|capitalize }}</td>
+            <td>{{ employee.experience or 0 }} yrs</td>
+            <td>{{ employee.tasks_completed or 0 }}</td>
+            <td>{{ "%.1f"|format(employee.success_rate or 0) }}%</td>
+            <td>
+              {% if employee.skills %}
+                {% for skill in employee.skills[:3] %}
+                  <span class="skill-badge">{{ skill }}</span>
+                {% endfor %}
+                {% if employee.skills|length > 3 %}
+                  <span class="skill-badge">+{{ employee.skills|length - 3 }}</span>
+                {% endif %}
+              {% else %}
+                <span style="color: #666;">None</span>
+              {% endif %}
+            </td>
             <td>
               <div class="action-buttons">
                 <a href="{{ url_for('edit_employee', emp_id=employee.emp_id) }}">
                   <button class="action-btn edit-btn">Edit</button>
                 </a>
+                <button class="action-btn metrics-btn" onclick="openMetricsModal('{{ employee.emp_id }}', {{ employee.tasks_completed or 0 }}, {{ employee.success_rate or 0 }})">Metrics</button>
                 {% if employee.emp_id != current_user.emp_id %}
                 <form action="{{ url_for('admin_delete_employee', emp_id=employee.emp_id) }}" method="post" style="display:inline;">
                   <button type="submit" class="action-btn delete-btn" onclick="return confirm('Are you sure you want to delete this employee?');">Delete</button>
@@ -291,6 +508,30 @@
     </div>
   </div>
 
+  <!-- Metrics Update Modal -->
+  <div id="metricsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-title">
+        <h4>Update Employee Metrics</h4>
+      </div>
+      <form id="metricsForm" class="metrics-form">
+        <input type="hidden" id="empId" name="empId">
+        <div class="form-group">
+          <label class="form-label" for="tasksCompleted">Tasks Completed</label>
+          <input type="number" class="form-control" id="tasksCompleted" name="tasksCompleted" min="0" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="successRate">Success Rate (%)</label>
+          <input type="number" class="form-control" id="successRate" name="successRate" min="0" max="100" step="0.1" required>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="cancel-btn" onclick="closeMetricsModal()">Cancel</button>
+          <button type="submit" class="save-btn">Update</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     // Close alert message
     document.addEventListener('DOMContentLoaded', function() {
@@ -300,7 +541,117 @@
           this.parentElement.classList.add('hidden');
         });
       });
+      
+      // Initialize filtering
+      document.getElementById('searchBtn').addEventListener('click', filterEmployees);
+      document.getElementById('resetBtn').addEventListener('click', resetFilters);
+      
+      // Setup metrics form submission
+      document.getElementById('metricsForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        updateEmployeeMetrics();
+      });
     });
+    
+    // Metrics Modal functions
+    function openMetricsModal(empId, tasksCompleted, successRate) {
+      document.getElementById('empId').value = empId;
+      document.getElementById('tasksCompleted').value = tasksCompleted;
+      document.getElementById('successRate').value = successRate;
+      document.getElementById('metricsModal').style.display = 'block';
+    }
+    
+    function closeMetricsModal() {
+      document.getElementById('metricsModal').style.display = 'none';
+    }
+    
+    // Close modal if clicked outside of modal content
+    window.onclick = function(event) {
+      const modal = document.getElementById('metricsModal');
+      if (event.target == modal) {
+        closeMetricsModal();
+      }
+    }
+    
+    // Update employee metrics via AJAX
+    function updateEmployeeMetrics() {
+      const empId = document.getElementById('empId').value;
+      const tasksCompleted = parseInt(document.getElementById('tasksCompleted').value);
+      const successRate = parseFloat(document.getElementById('successRate').value);
+      
+      // Create data object
+      const data = {
+        tasks_completed: tasksCompleted,
+        success_rate: successRate
+      };
+      
+      // Send AJAX request
+      fetch(`/admin/update_metrics/${empId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Success - reload page to show updated data
+          closeMetricsModal();
+          location.reload();
+        } else {
+          // Error
+          alert('Error updating metrics: ' + (data.error || 'Unknown error'));
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while updating the metrics');
+      });
+    }
+    
+    // Filter employees based on criteria
+    function filterEmployees() {
+      const roleFilter = document.getElementById('roleFilter').value.toLowerCase();
+      const expFilter = document.getElementById('expFilter').value;
+      const searchFilter = document.getElementById('searchInput').value.toLowerCase();
+      
+      const rows = document.querySelectorAll('.employee-row');
+      
+      rows.forEach(row => {
+        const role = row.getAttribute('data-role');
+        const exp = parseInt(row.getAttribute('data-exp'));
+        const name = row.getAttribute('data-name');
+        const email = row.getAttribute('data-email');
+        const skills = row.getAttribute('data-skills');
+        
+        // Check if row matches all filters
+        const matchesRole = !roleFilter || role === roleFilter;
+        const matchesExp = !expFilter || exp >= parseInt(expFilter);
+        const matchesSearch = !searchFilter || 
+                             name.includes(searchFilter) || 
+                             email.includes(searchFilter) || 
+                             skills.includes(searchFilter);
+        
+        if (matchesRole && matchesExp && matchesSearch) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    }
+    
+    // Reset all filters
+    function resetFilters() {
+      document.getElementById('roleFilter').value = '';
+      document.getElementById('expFilter').value = '';
+      document.getElementById('searchInput').value = '';
+      
+      const rows = document.querySelectorAll('.employee-row');
+      rows.forEach(row => {
+        row.style.display = '';
+      });
+    }
   </script>
 </body>
 </html>
