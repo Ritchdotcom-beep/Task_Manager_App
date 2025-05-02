@@ -1,0 +1,6 @@
+                    List of relations
+ Schema |   Name    | Type  |           Owner            
+--------+-----------+-------+----------------------------
+ public | employees | table | ai_task_management_db_user
+(1 row)
+

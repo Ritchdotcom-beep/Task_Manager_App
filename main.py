@@ -6,6 +6,7 @@ import requests
 import json
 from dotenv import load_dotenv
 from email_services import send_credentials_email
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -63,6 +64,31 @@ def get_skills_for_project_type(project_type):
     except Exception as e:
         print(f"Error fetching skills for project type: {str(e)}")
         return PROJECT_TYPES.get(project_type, [])
+
+def format_date(iso_date):
+    """Format ISO date string to human-readable format"""
+    if not iso_date:
+        return "Not set"
+    try:
+        date_obj = datetime.fromisoformat(iso_date.replace('Z', '+00:00'))
+        return date_obj.strftime("%b %d, %Y %H:%M")
+    except:
+        return iso_date
+
+def get_developer_tasks(emp_id):
+    """Get all tasks assigned to a specific developer"""
+    try:
+        response = requests.get(
+            f'{TASK_SERVICE_URL}/task-service/tasks',
+            params={'emp_id': emp_id},
+            headers=api_headers()
+        )
+        if response.status_code == 200:
+            return response.json().get('tasks', [])
+        return []
+    except Exception as e:
+        print(f"Error fetching developer tasks: {str(e)}")
+        return []
 
 # Helper functions for API calls
 def api_headers():
@@ -310,9 +336,12 @@ def change_password():
 @app.route('/developer_dashboard')
 def developer_dashboard():
     if 'emp_id' not in session:
-        return redirect(url_for('index'))
-    normalized_role = session['role'].lower().replace(' ', '_')
+        flash('Please log in to access the developer dashboard', 'warning')
+        return redirect(url_for('login'))
+    
+    normalized_role = session.get('role', '').lower().replace(' ', '_')
     if normalized_role != 'developer':
+        flash('Access restricted to developers only', 'danger')
         return redirect(url_for('index'))
     
     # Fetch complete employee data
@@ -326,7 +355,48 @@ def developer_dashboard():
         employee_data['experience'] = 0
         employee_data['skills'] = []
     
-    return render_template('developer_dashboard.html', employee=employee_data)
+    # Get assigned tasks for this developer
+    assigned_tasks = get_developer_tasks(session['emp_id'])
+    
+    # Get dashboard statistics for the developer
+    try:
+        dashboard_response = requests.get(
+            f'{request.host_url.rstrip("/")}/api/task-service/dashboard?emp_id={session["emp_id"]}',
+            headers=api_headers()
+        )
+        dashboard_data = dashboard_response.json() if dashboard_response.status_code == 200 else {}
+    except Exception as e:
+        print(f"Error getting dashboard data: {str(e)}")
+        dashboard_data = {}
+    
+    # Categorize tasks by status
+    in_progress_tasks = [task for task in assigned_tasks if task.get('status') == 'in_progress']
+    pending_tasks = [task for task in assigned_tasks if task.get('status') == 'assigned']
+    completed_tasks = [task for task in assigned_tasks if task.get('status') == 'completed']
+    
+    # Get project types for filtering
+    try:
+        project_types_response = requests.get(
+            f'{request.host_url.rstrip("/")}/api/task-service/project-types',
+            headers=api_headers()
+        )
+        project_types = project_types_response.json().get('project_types', []) if project_types_response.status_code == 200 else []
+    except Exception as e:
+        print(f"Error getting project types: {str(e)}")
+        project_types = []
+    
+    return render_template(
+        'developer_dashboard.html', 
+        employee=employee_data,
+        tasks=assigned_tasks,
+        in_progress_tasks=in_progress_tasks,
+        pending_tasks=pending_tasks,
+        completed_tasks=completed_tasks,
+        dashboard=dashboard_data,
+        project_types=project_types,
+        format_date=format_date
+    )
+
 
 @app.route('/project_manager_dashboard')
 def project_manager_dashboard():
@@ -624,6 +694,76 @@ def get_assignment_recommendation():
             'success': False,
             'error': f'Exception: {str(e)}'
         }), 500
+
+@app.route('/update_task_status', methods=['POST'])
+def update_task_status():
+    """Update a task's status"""
+    if 'emp_id' not in session:
+        return jsonify({'success': False, 'error': 'Not logged in'}), 401
+    
+    data = request.json
+    if not data or 'task_id' not in data or 'status' not in data:
+        return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+    
+    task_id = data['task_id']
+    new_status = data['status']
+    rating = data.get('rating')
+    emp_id = session['emp_id']
+    
+    # Call the task service API to update the task
+    try:
+        # Following the pattern of other API calls in your application
+        response = requests.put(
+            f'{TASK_SERVICE_URL}/api/task-service/tasks/update',
+            json={
+                'task_id': task_id,
+                'emp_id': emp_id,
+                'status': new_status,
+                'rating': rating
+            },
+            headers=api_headers()
+        )
+        
+        # Print response for debugging
+        print(f"Update task response: {response.status_code} - {response.text}")
+        
+        if response.status_code != 200:
+            return jsonify({
+                'success': False, 
+                'error': f'Task service error: {response.status_code} - {response.text}'
+            }), 500
+            
+        result = response.json()
+        return jsonify({
+            'success': True,
+            'task': result.get('task', {})
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"Error updating task status: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': f'Exception: {str(e)}'
+        }), 500
+    
+    return jsonify({
+        'success': True,
+        'task': task.to_dict()
+    })
+
+# Add a jinja template filter for formatting dates
+@app.template_filter('datetime')
+def format_datetime(value, format='%B %d, %Y %I:%M %p'):
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        except:
+            return value
+    return value.strftime(format)
 
 @app.route('/test_email')
 def test_email():

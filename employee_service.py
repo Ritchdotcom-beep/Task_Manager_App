@@ -176,7 +176,7 @@ def create_employee():
         for attempt in range(max_retries):
             try:
                 emp_id = get_next_employee_id()  # This returns a string
-                temp_password = generate_random_password(12)
+                temp_password = generate_random_password(5)
                 
                 new_employee = Employee(
                     emp_id=emp_id,
@@ -226,7 +226,7 @@ def create_employee():
                 }), 409  # 409 for conflict
                 
             # Generate secure password
-            temp_password = generate_random_password(12)
+            temp_password = generate_random_password(5)
             
             new_employee = Employee(
                 emp_id=emp_id,

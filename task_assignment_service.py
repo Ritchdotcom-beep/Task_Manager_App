@@ -7,6 +7,7 @@ import os
 import requests
 import pickle
 import json
+from datetime import datetime
 from dotenv import load_dotenv
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
@@ -21,10 +22,51 @@ app = Flask(__name__)
 # Configuration
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev_secret_key_for_task_service')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/task_db')
+db = SQLAlchemy(app)
 
 # Employee service configuration
 EMPLOYEE_SERVICE_URL = os.environ.get('EMPLOYEE_SERVICE_URL', 'http://localhost:5001/api')
 API_KEY = os.environ.get('API_KEY', 'dev_api_key')
+
+class Task(db.Model):
+    __tablename__ = 'tasks'
+    
+    task_id = db.Column(db.String(50), primary_key=True)
+    project_type = db.Column(db.String(100), nullable=False)
+    skills = db.Column(db.ARRAY(db.String(50)), default=[])
+    complexity = db.Column(db.String(20), nullable=False)
+    priority = db.Column(db.String(20), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Assignment details
+    assigned_to = db.Column(db.String(50), nullable=True)  # employee ID
+    assigned_at = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(20), default='assigned')  # assigned, in_progress, completed, rejected
+    
+    # Metrics
+    completion_date = db.Column(db.DateTime, nullable=True)
+    success_rating = db.Column(db.Integer, nullable=True)  # 1-10 rating
+    
+    def to_dict(self):
+        return {
+            'task_id': self.task_id,
+            'project_type': self.project_type,
+            'skills': self.skills,
+            'complexity': self.complexity,
+            'priority': self.priority,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'assigned_to': self.assigned_to,
+            'assigned_at': self.assigned_at.isoformat() if self.assigned_at else None,
+            'status': self.status,
+            'completion_date': self.completion_date.isoformat() if self.completion_date else None,
+            'success_rating': self.success_rating
+        }
+
+@app.cli.command("create_tables")
+def create_tables():
+    db.create_all()
+    print("Task tables created!")
 
 # Define project types and their required skills
 PROJECT_TYPES = {
@@ -423,14 +465,52 @@ def assign_tasks_ml(tasks, employees, model_data):
     
     return assignments
 
+def update_employee_metrics(emp_id):
+    """Updates employee metrics based on completed tasks"""
+    try:
+        # Get completed tasks for the employee
+        completed_tasks = Task.query.filter_by(assigned_to=emp_id, status='completed').all()
+        
+        if not completed_tasks:
+            return True  # No tasks to process
+        
+        # Calculate new metrics
+        tasks_completed = len(completed_tasks)
+        
+        # Calculate success rate based on ratings
+        rated_tasks = [task for task in completed_tasks if task.success_rating is not None]
+        if rated_tasks:
+            avg_rating = sum(task.success_rating for task in rated_tasks) / len(rated_tasks)
+            # Convert to a percentage (assuming ratings are 1-10)
+            success_rate = (avg_rating / 10) * 100
+        else:
+            success_rate = 0
+        
+        # Update employee service with new metrics
+        api_response = requests.put(
+            f'{EMPLOYEE_SERVICE_URL}/employees/{emp_id}/metrics',
+            headers=api_headers(),
+            json={
+                'tasks_completed': tasks_completed,
+                'success_rate': success_rate
+            }
+        )
+        
+        if api_response.status_code != 200:
+            print(f"Failed to update employee metrics: {api_response.text}")
+            return False
+            
+        return True
+    except Exception as e:
+        print(f"Error updating employee metrics: {str(e)}")
+        return False
+
 # API Routes
 @app.route('/api/create_task', methods=['POST'])
 def create_task():
-    """Create a new task and get assignment recommendations"""
-    # Note: We're removing the session check here as it should be handled by the main app
-    # Task service should focus on the assignment logic
-        
+    """Create a new task, save it to the database, and get assignment recommendations"""
     task_data = request.json
+    
     # Validate task data
     required_fields = ['task_id', 'project_type', 'complexity', 'priority']
     for field in required_fields:
@@ -459,11 +539,49 @@ def create_task():
             'error': assignments["error"]
         }), 500
     
-    return jsonify({
-        'success': True,
-        'task': task_data,
-        'assignments': assignments
-    })
+    # Store the task in the database
+    try:
+        # Get the assigned employee
+        task_id = task_data['task_id']
+        assignment = assignments.get(task_id)
+        
+        # Create new task object
+        new_task = Task(
+            task_id=task_id,
+            project_type=task_data['project_type'],
+            skills=task_data['skills'],
+            complexity=task_data['complexity'],
+            priority=task_data['priority'],
+            assigned_to=assignment.get('emp_id') if assignment and 'emp_id' in assignment else None,
+            assigned_at=datetime.utcnow() if assignment and 'emp_id' in assignment else None,
+            status='assigned' if assignment and 'emp_id' in assignment else 'unassigned'
+        )
+        
+        # Save to database
+        db.session.add(new_task)
+        db.session.commit()
+        
+        # Return response with task and assignments
+        return jsonify({
+            'success': True,
+            'task': task_data,
+            'assignments': assignments,
+            'task_saved': True
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error saving task: {str(e)}")
+        
+        # Still return assignment recommendations but note the DB error
+        return jsonify({
+            'success': True,
+            'task': task_data,
+            'assignments': assignments,
+            'task_saved': False,
+            'db_error': str(e)
+        })
+
 
 
 @app.route('/api/get_project_skills', methods=['GET'])
@@ -498,7 +616,7 @@ def get_skills_for_project():
 
 @app.route('/api/task-service/assign-tasks', methods=['POST'])
 def assign_tasks():
-    """Assign tasks to employees using ML model"""
+    """Assign tasks to employees using ML model, and save to database"""
     try:
         data = request.json
         
@@ -527,9 +645,58 @@ def assign_tasks():
                 'error': assignments["error"]
             }), 500
         
+        # Save assignments to database
+        saved_tasks = []
+        failed_tasks = []
+        
+        for task in tasks:
+            task_id = task.get('task_id')
+            if not task_id:
+                failed_tasks.append({"task": task, "error": "Missing task_id"})
+                continue
+                
+            assignment = assignments.get(task_id)
+            if not assignment or 'emp_id' not in assignment:
+                failed_tasks.append({"task": task, "error": "No valid assignment found"})
+                continue
+            
+            try:
+                # Check if task already exists
+                existing_task = Task.query.get(task_id)
+                
+                if existing_task:
+                    # Update existing task
+                    existing_task.assigned_to = assignment.get('emp_id')
+                    existing_task.assigned_at = datetime.utcnow()
+                    existing_task.status = 'assigned'
+                else:
+                    # Create new task
+                    new_task = Task(
+                        task_id=task_id,
+                        project_type=task.get('project_type', 'unknown'),
+                        skills=task.get('skills', []),
+                        complexity=task.get('complexity', 'Medium'),
+                        priority=task.get('priority', 'Medium'),
+                        assigned_to=assignment.get('emp_id'),
+                        assigned_at=datetime.utcnow(),
+                        status='assigned'
+                    )
+                    db.session.add(new_task)
+                
+                saved_tasks.append(task_id)
+            except Exception as e:
+                db.session.rollback()
+                failed_tasks.append({"task": task, "error": str(e)})
+        
+        # Commit all successful tasks
+        if saved_tasks:
+            db.session.commit()
+        
         return jsonify({
             'success': True,
-            'assignments': assignments
+            'assignments': assignments,
+            'saved_tasks': saved_tasks,
+            'failed_tasks': failed_tasks
         })
     except Exception as e:
         import traceback
@@ -538,6 +705,189 @@ def assign_tasks():
         return jsonify({
             'success': False,
             'error': f'Exception: {str(e)}'
+        }), 500
+    
+# Add these new endpoints to task_assignment_service.py
+
+@app.route('/api/task-service/tasks', methods=['GET'])
+def get_all_tasks():
+    """Get all tasks or filter by employee, status, etc."""
+    try:
+        # Get query parameters for filtering
+        emp_id = request.args.get('emp_id')
+        status = request.args.get('status')
+        project_type = request.args.get('project_type')
+        
+        # Start with base query
+        query = Task.query
+        
+        # Apply filters if provided
+        if emp_id:
+            query = query.filter_by(assigned_to=emp_id)
+        if status:
+            query = query.filter_by(status=status)
+        if project_type:
+            query = query.filter_by(project_type=project_type)
+            
+        # Execute query and convert to dict
+        tasks = query.all()
+        task_list = [task.to_dict() for task in tasks]
+        
+        return jsonify({
+            'success': True,
+            'tasks': task_list,
+            'count': len(task_list)
+        })
+    except Exception as e:
+        print(f"Error getting tasks: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/task-service/task/<task_id>', methods=['GET'])
+def get_task(task_id):
+    """Get details for a single task"""
+    try:
+        task = Task.query.get(task_id)
+        if not task:
+            return jsonify({
+                'success': False,
+                'error': 'Task not found'
+            }), 404
+            
+        return jsonify({
+            'success': True,
+            'task': task.to_dict()
+        })
+    except Exception as e:
+        print(f"Error getting task: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/task-service/task/<task_id>/status', methods=['PUT'])
+def update_task_status(task_id):
+    """Update a task's status"""
+    try:
+        data = request.json
+        if not data or 'status' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Status is required'
+            }), 400
+            
+        task = Task.query.get(task_id)
+        if not task:
+            return jsonify({
+                'success': False,
+                'error': 'Task not found'
+            }), 404
+            
+        # Update task status
+        task.status = data['status']
+        
+        # For completed tasks, set completion date and update metrics
+        if data['status'] == 'completed':
+            task.completion_date = datetime.utcnow()
+            
+            # Set success rating if provided
+            if 'rating' in data:
+                task.success_rating = data['rating']
+                
+            # Update employee metrics
+            if task.assigned_to:
+                update_employee_metrics(task.assigned_to)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'task': task.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating task status: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/task-service/dashboard', methods=['GET'])
+def get_dashboard_data():
+    """Get dashboard data including task statistics"""
+    try:
+        # Get employee ID if filtering for a specific employee
+        emp_id = request.args.get('emp_id')
+        
+        # Base query
+        query = Task.query
+        
+        # Filter for specific employee if provided
+        if emp_id:
+            query = query.filter_by(assigned_to=emp_id)
+            
+        # Get all matching tasks
+        tasks = query.all()
+        
+        # Calculate statistics
+        total_tasks = len(tasks)
+        completed_tasks = sum(1 for task in tasks if task.status == 'completed')
+        in_progress_tasks = sum(1 for task in tasks if task.status == 'in_progress')
+        assigned_tasks = sum(1 for task in tasks if task.status == 'assigned')
+        
+        # Calculate completion rate
+        completion_rate = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+        
+        # Group by project type
+        project_counts = {}
+        for task in tasks:
+            project_type = task.project_type
+            if project_type not in project_counts:
+                project_counts[project_type] = 0
+            project_counts[project_type] += 1
+            
+        # Group by priority
+        priority_counts = {
+            'Low': sum(1 for task in tasks if task.priority == 'Low'),
+            'Medium': sum(1 for task in tasks if task.priority == 'Medium'),
+            'High': sum(1 for task in tasks if task.priority == 'High')
+        }
+        
+        # Calculate recent completion trend (last 5 completions)
+        recent_completions = Task.query.filter_by(status='completed')\
+            .order_by(Task.completion_date.desc())\
+            .limit(5)\
+            .all()
+            
+        completion_trend = [
+            {
+                'task_id': task.task_id,
+                'completion_date': task.completion_date.isoformat() if task.completion_date else None,
+                'rating': task.success_rating
+            } for task in recent_completions
+        ]
+        
+        # Return dashboard data
+        return jsonify({
+            'success': True,
+            'total_tasks': total_tasks,
+            'tasks_by_status': {
+                'completed': completed_tasks,
+                'in_progress': in_progress_tasks,
+                'assigned': assigned_tasks
+            },
+            'completion_rate': completion_rate,
+            'tasks_by_project': project_counts,
+            'tasks_by_priority': priority_counts,
+            'recent_completions': completion_trend
+        })
+    except Exception as e:
+        print(f"Error generating dashboard data: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
         }), 500
 
 @app.route('/api/task-service/retrain-model', methods=['POST'])
