@@ -814,6 +814,7 @@ def update_task_status(task_id):
             'error': str(e)
         }), 500
 
+
 @app.route('/api/task-service/dashboard', methods=['GET'])
 def get_dashboard_data():
     """Get dashboard data including task statistics"""

@@ -211,7 +211,7 @@
                                     </span>
                                 </div>
                                 <p class="text-sm text-gray-400 mb-2">{{ task.project_type|replace('_', ' ')|title }}</p>
-                                <p class="text-xs text-gray-500 mb-3">Assigned: {{ task.assigned_at|datetime }}</p>
+                                <p class="text-xs text-gray-500 mb-3">Assigned: {{ task.assigned_at|default('N/A')|datetime }}</p>
                                 <div class="flex justify-end">
                                     <button class="bg-indigo-700 text-white px-3 py-1 rounded hover:bg-indigo-800 text-sm" 
                                             onclick="startTask('{{ task.task_id }}')">
@@ -242,7 +242,7 @@
                                     </span>
                                 </div>
                                 <p class="text-sm text-gray-400 mb-2">{{ task.project_type|replace('_', ' ')|title }}</p>
-                                <p class="text-xs text-gray-500 mb-3">Started: {{ task.start_date|datetime }}</p>
+                                <p class="text-xs text-gray-500 mb-3">Started: {{ task.start_date|default('N/A')|datetime }}</p>
                                 <div class="flex justify-end">
                                     <button class="bg-green-700 text-white px-3 py-1 rounded hover:bg-green-800 text-sm" 
                                             onclick="completeTask('{{ task.task_id }}')">
@@ -277,7 +277,7 @@
                                     </span>
                                 </div>
                                 <p class="text-sm text-gray-400 mb-2">{{ task.project_type|replace('_', ' ')|title }}</p>
-                                <p class="text-xs text-gray-500">Completed: {{ task.completion_date|datetime }}</p>
+                                <p class="text-xs text-gray-500">Completed: {{ task.completion_date|default('N/A')|datetime }}</p>
                             </div>
                             {% endfor %}
                         {% else %}
@@ -363,6 +363,7 @@
     </div>
 
     <script>
+        
         // Initialize Charts
         document.addEventListener('DOMContentLoaded', function() {
             // Set Chart.js defaults for dark theme

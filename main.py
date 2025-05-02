@@ -700,39 +700,42 @@ def update_task_status():
     """Update a task's status"""
     if 'emp_id' not in session:
         return jsonify({'success': False, 'error': 'Not logged in'}), 401
-    
+        
     data = request.json
     if not data or 'task_id' not in data or 'status' not in data:
         return jsonify({'success': False, 'error': 'Missing required fields'}), 400
-    
+        
     task_id = data['task_id']
     new_status = data['status']
     rating = data.get('rating')
     emp_id = session['emp_id']
     
+    # Print URL for debugging
+    task_url = f'{TASK_SERVICE_URL}/task-service/task/{task_id}/status'
+    print(f"Making request to: {task_url}")
+        
     # Call the task service API to update the task
     try:
-        # Following the pattern of other API calls in your application
+        # Simpler URL without '/api/' prefix to avoid duplication
         response = requests.put(
-            f'{TASK_SERVICE_URL}/api/task-service/tasks/update',
+            task_url,
             json={
-                'task_id': task_id,
                 'emp_id': emp_id,
                 'status': new_status,
                 'rating': rating
             },
             headers=api_headers()
         )
-        
+            
         # Print response for debugging
         print(f"Update task response: {response.status_code} - {response.text}")
-        
+            
         if response.status_code != 200:
             return jsonify({
                 'success': False, 
                 'error': f'Task service error: {response.status_code} - {response.text}'
             }), 500
-            
+                
         result = response.json()
         return jsonify({
             'success': True,
@@ -747,11 +750,6 @@ def update_task_status():
             'success': False,
             'error': f'Exception: {str(e)}'
         }), 500
-    
-    return jsonify({
-        'success': True,
-        'task': task.to_dict()
-    })
 
 # Add a jinja template filter for formatting dates
 @app.template_filter('datetime')
