@@ -42,7 +42,13 @@ class Task(db.Model):
     # Assignment details
     assigned_to = db.Column(db.String(50), nullable=True)  # employee ID
     assigned_at = db.Column(db.DateTime, nullable=True)
-    status = db.Column(db.String(20), default='assigned')  # assigned, in_progress, completed, rejected
+    status = db.Column(db.String(20), default='assigned')  # assigned, in_progress, pending_approval, completed, rejected
+    
+    # Submission and approval details
+    submitted_at = db.Column(db.DateTime, nullable=True)
+    approved_by = db.Column(db.String(50), nullable=True)  # manager ID
+    approved_at = db.Column(db.DateTime, nullable=True)
+    approval_notes = db.Column(db.Text, nullable=True)
     
     # Metrics
     completion_date = db.Column(db.DateTime, nullable=True)
@@ -59,6 +65,10 @@ class Task(db.Model):
             'assigned_to': self.assigned_to,
             'assigned_at': self.assigned_at.isoformat() if self.assigned_at else None,
             'status': self.status,
+            'submitted_at': self.submitted_at.isoformat() if self.submitted_at else None,
+            'approved_by': self.approved_by,
+            'approved_at': self.approved_at.isoformat() if self.approved_at else None,
+            'approval_notes': self.approval_notes,
             'completion_date': self.completion_date.isoformat() if self.completion_date else None,
             'success_rating': self.success_rating
         }
@@ -745,7 +755,7 @@ def get_all_tasks():
             'error': str(e)
         }), 500
 
-@app.route('/api/task-service/task/<task_id>', methods=['GET'])
+@app.route('/api/task-service/tasks/<task_id>', methods=['GET'])
 def get_task(task_id):
     """Get details for a single task"""
     try:
@@ -767,7 +777,7 @@ def get_task(task_id):
             'error': str(e)
         }), 500
 
-@app.route('/api/task-service/task/<task_id>/status', methods=['PUT'])
+@app.route('/api/task-service/tasks/<task_id>/status', methods=['PUT'])
 def update_task_status(task_id):
     """Update a task's status"""
     try:
@@ -814,6 +824,117 @@ def update_task_status(task_id):
             'error': str(e)
         }), 500
 
+@app.route('/api/task-service/tasks/<task_id>/submit', methods=['POST'])
+def submit_task(task_id):
+    try:
+        data = request.get_json()
+        if not data or 'emp_id' not in data:
+            return jsonify({'success': False, 'error': 'Employee ID required'}), 400
+
+        # Get and validate task
+        task = Task.query.filter_by(task_id=task_id).first()
+        if not task:
+            return jsonify({'success': False, 'error': 'Task not found'}), 404
+
+        if task.status != 'in_progress':
+            return jsonify({
+                'success': False,
+                'error': f'Task must be in progress (current: {task.status})'
+            }), 400
+
+        # Update task status and submission time
+        task.status = 'submitted'
+        task.submitted_at = datetime.utcnow()
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Task submitted successfully',
+            'task': {
+                'task_id': task.task_id,
+                'new_status': task.status,
+                'submitted_at': task.submitted_at.isoformat()
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/task-service/tasks/<task_id>/approve', methods=['PUT'])
+def approve_task(task_id):
+    """Approve or reject a submitted task"""
+    try:
+        data = request.json
+        if not data or 'approved' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Approval decision is required'
+            }), 400
+            
+        manager_id = data.get('manager_id')
+        if not manager_id:
+            return jsonify({
+                'success': False,
+                'error': 'Manager ID is required'
+            }), 400
+            
+        task = Task.query.get(task_id)
+        if not task:
+            return jsonify({
+                'success': False,
+                'error': 'Task not found'
+            }), 404
+            
+        # Check if task is pending approval
+        if task.status != 'pending_approval':
+            return jsonify({
+                'success': False,
+                'error': f'Cannot approve/reject task with status: {task.status}. Task must be pending approval.'
+            }), 400
+            
+        # Handle approval or rejection
+        is_approved = data['approved']
+        task.approved_by = manager_id
+        task.approved_at = datetime.utcnow()
+        
+        if 'notes' in data:
+            task.approval_notes = data['notes']
+            
+        if is_approved:
+            # Mark as completed
+            task.status = 'completed'
+            task.completion_date = datetime.utcnow()
+            
+            # Set success rating if provided
+            if 'rating' in data:
+                task.success_rating = data['rating']
+                
+            # Update employee metrics
+            if task.assigned_to:
+                update_employee_metrics(task.assigned_to)
+        else:
+            # If rejected, set status back to in_progress
+            task.status = 'in_progress'
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Task ' + ('approved' if is_approved else 'rejected and returned for revisions'),
+            'task': task.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error processing task approval: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 @app.route('/api/task-service/dashboard', methods=['GET'])
 def get_dashboard_data():
@@ -837,6 +958,7 @@ def get_dashboard_data():
         completed_tasks = sum(1 for task in tasks if task.status == 'completed')
         in_progress_tasks = sum(1 for task in tasks if task.status == 'in_progress')
         assigned_tasks = sum(1 for task in tasks if task.status == 'assigned')
+        pending_approval_tasks = sum(1 for task in tasks if task.status == 'pending_approval')
         
         # Calculate completion rate
         completion_rate = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
@@ -877,7 +999,8 @@ def get_dashboard_data():
             'tasks_by_status': {
                 'completed': completed_tasks,
                 'in_progress': in_progress_tasks,
-                'assigned': assigned_tasks
+                'assigned': assigned_tasks,
+                'pending_approval': pending_approval_tasks
             },
             'completion_rate': completion_rate,
             'tasks_by_project': project_counts,

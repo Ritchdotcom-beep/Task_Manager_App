@@ -3,436 +3,640 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Developer Dashboard</title>
+    <title>Developer Dashboard | TaskMaster</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
     <style>
+        :root {
+            --bg-dark: #121212;
+            --card-dark: #1e1e1e;
+            --border-dark: #333;
+            --text-primary: #e0e0e0;
+            --text-secondary: #888;
+            --indigo-dark: #4f46e5;
+            --indigo-light: #6366f1;
+        }
+        
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
         .sidebar {
             min-height: calc(100vh - 64px);
+            background-color: var(--card-dark);
+            border-right: 1px solid var(--border-dark);
         }
-        .card-hover:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-        }
-        .transition-card {
+        
+        .dark-card {
+            background-color: var(--card-dark);
+            border: 1px solid var(--border-dark);
+            border-radius: 0.5rem;
             transition: all 0.3s ease;
         }
-        /* Dark theme overrides */
-        body {
-            background-color: #121212;
-            color: #e0e0e0;
+        
+        .dark-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
         }
-        .dark-card {
-            background-color: #1e1e1e;
-            color: #e0e0e0;
-            border: 1px solid #333;
+        
+        .status-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: capitalize;
         }
-        .dark-sidebar {
-            background-color: #1e1e1e;
-            color: #e0e0e0;
-            border-right: 1px solid #333;
+        
+        .status-assigned { background-color: #3b82f6; color: white; }
+        .status-in_progress { background-color: #f59e0b; color: black; }
+        .status-pending_approval { background-color: #8b5cf6; color: white; }
+        .status-completed { background-color: #10b981; color: white; }
+        
+        .skill-tag {
+            display: inline-flex;
+            align-items: center;
+            background-color: #1e3a8a;
+            color: #93c5fd;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
         }
-        .dark-hover:hover {
+        
+        .skill-tag .remove-skill {
+            margin-left: 0.5rem;
+            cursor: pointer;
+            color: #bfdbfe;
+        }
+        
+        .task-card {
+            border-left: 4px solid transparent;
+            transition: all 0.2s ease;
+        }
+        
+        .task-card:hover {
+            border-left-color: var(--indigo-light);
             background-color: #2a2a2a;
         }
-        .dark-input {
-            background-color: #2a2a2a;
-            color: #e0e0e0;
-            border-color: #444;
+        
+        .rating-stars {
+            color: #f59e0b;
         }
-        .dark-input::placeholder {
-            color: #888;
+        
+        .progress-ring {
+            transform: rotate(-90deg);
         }
-        .dark-input:focus {
-            border-color: #6366f1;
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
-        }
-        .dark-select {
-            background-color: #2a2a2a;
-            color: #e0e0e0;
-            border-color: #444;
-        }
-        .dark-select:focus {
-            border-color: #6366f1;
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
-        }
-        .task-badge {
-            position: absolute;
-            top: -8px;
-            right: -8px;
-            font-size: 0.7rem;
+        
+        .progress-ring-circle {
+            stroke-dasharray: 283;
+            stroke-dashoffset: 283;
+            transition: stroke-dashoffset 0.5s ease;
         }
     </style>
 </head>
-<body class="bg-black">
-    <nav class="bg-gray-800 text-white p-4">
+<body>
+    <!-- Navigation Bar -->
+    <nav class="bg-gray-800 text-white p-4 shadow-md">
         <div class="container mx-auto flex justify-between items-center">
-            <div class="flex items-center space-x-4">
-                <i class="fas fa-code text-2xl"></i>
+            <div class="flex items-center space-x-3">
+                <i class="fas fa-code-branch text-2xl text-indigo-400"></i>
                 <h1 class="text-xl font-bold">TaskMaster</h1>
+                <span class="text-sm bg-indigo-900 px-2 py-1 rounded ml-2">DEV</span>
             </div>
             <div class="flex items-center space-x-4">
-                <span>Welcome, {{ employee.name }}</span>
-                <a href="/logout" class="bg-indigo-700 px-4 py-2 rounded hover:bg-indigo-800">Logout</a>
+                <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 rounded-full bg-indigo-700 flex items-center justify-center">
+                        <span class="text-xs font-bold">{{ employee.name|first|upper }}</span>
+                    </div>
+                    <span>{{ employee.name }}</span>
+                </div>
+                <a href="/logout" class="bg-indigo-700 hover:bg-indigo-800 px-4 py-2 rounded-md transition-colors">
+                    <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                </a>
             </div>
         </div>
     </nav>
 
     <div class="container mx-auto flex">
-        <!-- Sidebar -->
-        <div class="sidebar w-64 dark-sidebar shadow-md p-6">
-            <div class="mb-8">
-                <div class="w-24 h-24 rounded-full bg-indigo-900 mx-auto flex items-center justify-center mb-2">
-                    <i class="fas fa-user text-4xl text-indigo-400"></i>
+        <!-- Sidebar Navigation -->
+        <div class="sidebar w-64 p-6 hidden md:block">
+            <div class="mb-8 text-center">
+                <div class="w-24 h-24 rounded-full bg-indigo-900 mx-auto flex items-center justify-center mb-3">
+                    {% if employee.avatar_url %}
+                    <img src="{{ employee.avatar_url }}" alt="Profile" class="w-full h-full rounded-full object-cover">
+                    {% else %}
+                    <i class="fas fa-user-astronaut text-4xl text-indigo-400"></i>
+                    {% endif %}
                 </div>
-                <p class="text-center font-bold">{{ employee.name }}</p>
-                <p class="text-center text-gray-400 text-sm">{{ employee.role }}</p>
+                <h2 class="font-bold text-lg">{{ employee.name }}</h2>
+                <p class="text-indigo-400 text-sm">{{ employee.role }}</p>
+                <p class="text-gray-400 text-xs mt-1">Member since {{ format_date(employee.join_date, '%b %Y') }}</p>
             </div>
+            
             <ul class="space-y-2">
-                <li class="bg-indigo-900 rounded p-2">
-                    <a href="/developer_dashboard" class="flex items-center space-x-2 text-indigo-200">
-                        <i class="fas fa-tachometer-alt"></i>
+                <li>
+                    <a href="/developer_dashboard" class="flex items-center space-x-3 p-3 bg-indigo-900 rounded-lg text-indigo-200">
+                        <i class="fas fa-tachometer-alt w-5 text-center"></i>
                         <span>Dashboard</span>
                     </a>
                 </li>
-                <li class="dark-hover rounded p-2">
-                    <a href="/my_skills" class="flex items-center space-x-2">
-                        <i class="fas fa-brain"></i>
-                        <span>My Skills</span>
-                    </a>
-                </li>
-                <li class="dark-hover rounded p-2 relative">
-                    <a href="/my_tasks" class="flex items-center space-x-2">
-                        <i class="fas fa-tasks"></i>
+                <li>
+                    <a href="/my_tasks" class="flex items-center space-x-3 p-3 hover:bg-gray-800 rounded-lg transition-colors">
+                        <i class="fas fa-tasks w-5 text-center"></i>
                         <span>My Tasks</span>
                     </a>
-                    {% if pending_tasks|length > 0 %}
-                    <span class="task-badge bg-red-600 text-white px-2 py-1 rounded-full">{{ pending_tasks|length }}</span>
-                    {% endif %}
                 </li>
-                <li class="dark-hover rounded p-2">
-                    <a href="/change_password" class="flex items-center space-x-2">
-                        <i class="fas fa-key"></i>
-                        <span>Change Password</span>
+                <li>
+                    <a href="/notifications" class="flex items-center space-x-3 p-3 hover:bg-gray-800 rounded-lg transition-colors">
+                        <i class="fas fa-bell w-5 text-center"></i>
+                        <span>Notifications</span>
+                        <span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full">3</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/settings" class="flex items-center space-x-3 p-3 hover:bg-gray-800 rounded-lg transition-colors">
+                        <i class="fas fa-cog w-5 text-center"></i>
+                        <span>Settings</span>
                     </a>
                 </li>
             </ul>
+            
+            <div class="mt-8 pt-4 border-t border-gray-700">
+                <h3 class="text-xs uppercase text-gray-400 mb-3 font-bold">Quick Actions</h3>
+                <button onclick="showTaskReportModal()" class="w-full flex items-center space-x-3 p-3 hover:bg-gray-800 rounded-lg transition-colors text-left">
+                    <i class="fas fa-file-alt w-5 text-center"></i>
+                    <span>Submit Report</span>
+                </button>
+                <button onclick="showTimeOffModal()" class="w-full flex items-center space-x-3 p-3 hover:bg-gray-800 rounded-lg transition-colors text-left mt-2">
+                    <i class="fas fa-umbrella-beach w-5 text-center"></i>
+                    <span>Request Time Off</span>
+                </button>
+            </div>
         </div>
 
-        <!-- Main Content -->
+        <!-- Main Content Area -->
         <div class="flex-1 p-6">
-            <h2 class="text-2xl font-bold mb-6 text-white">Developer Dashboard</h2>
+            <!-- Dashboard Header -->
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+                <div>
+                    <h2 class="text-2xl font-bold">Developer Dashboard</h2>
+                    <p class="text-gray-400">Welcome back! Here's your current workload overview.</p>
+                </div>
+                <div class="mt-4 md:mt-0">
+                    <div class="relative">
+                        <input type="text" placeholder="Search tasks..." class="bg-gray-800 border border-gray-700 rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-64">
+                        <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                    </div>
+                </div>
+            </div>
 
-            <!-- Stats Row -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div class="dark-card rounded-lg shadow p-6 transition-card card-hover">
-                    <div class="flex justify-between items-start">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <!-- Success Rate Card -->
+                <div class="dark-card p-6">
+                    <div class="flex justify-between">
                         <div>
-                            <p class="text-gray-400">Success Rate</p>
-                            <h3 class="text-3xl font-bold">{{ "%.1f"|format(employee.success_rate) }}%</h3>
+                            <p class="text-gray-400 text-sm font-medium">Success Rate</p>
+                            <h3 class="text-3xl font-bold mt-1">{{ "%.1f"|format(dashboard.success_rate) }}%</h3>
+                            <p class="text-xs mt-2 {{ 'text-green-400' if dashboard.success_rate >= 80 else 'text-yellow-400' }}">
+                                {{ 'Excellent' if dashboard.success_rate >= 80 else 'Good' }} performance
+                            </p>
                         </div>
-                        <div class="bg-green-900 p-3 rounded-full">
-                            <i class="fas fa-chart-line text-green-400"></i>
+                        <div class="relative w-16 h-16">
+                            <svg class="w-full h-full" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="45" fill="none" stroke="#2d3748" stroke-width="8"/>
+                                <circle cx="50" cy="50" r="45" fill="none" stroke="#4f46e5" stroke-width="8" stroke-linecap="round"
+                                    stroke-dasharray="283"
+                                    stroke-dashoffset="{{ 283 - (283 * dashboard.success_rate / 100) }}"/>
+                            </svg>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <i class="fas fa-chart-line text-indigo-400"></i>
+                            </div>
                         </div>
                     </div>
                 </div>
                 
-                <div class="dark-card rounded-lg shadow p-6 transition-card card-hover">
-                    <div class="flex justify-between items-start">
+                <!-- Tasks Completed Card -->
+                <div class="dark-card p-6">
+                    <div class="flex justify-between">
                         <div>
-                            <p class="text-gray-400">Tasks Completed</p>
-                            <h3 class="text-3xl font-bold">{{ employee.tasks_completed }}</h3>
+                            <p class="text-gray-400 text-sm font-medium">Tasks Completed</p>
+                            <h3 class="text-3xl font-bold mt-1">{{ dashboard.tasks_completed }}</h3>
+                            <p class="text-xs mt-2 text-gray-400">
+                                {% set total_tasks = dashboard.tasks_completed + assigned_tasks|length + in_progress_tasks|length + pending_approval_tasks|length %}
+                                {% if total_tasks > 0 %}
+                                    {{ (dashboard.tasks_completed / total_tasks * 100)|round(1) }}% of total
+                                {% else %}
+                                    0% of total
+                                {% endif %}
+                            </p>
                         </div>
-                        <div class="bg-blue-900 p-3 rounded-full">
-                            <i class="fas fa-check-circle text-blue-400"></i>
+                        <div class="w-16 h-16 bg-green-900 rounded-full flex items-center justify-center">
+                            <i class="fas fa-check-circle text-green-400 text-2xl"></i>
                         </div>
                     </div>
                 </div>
                 
-                <div class="dark-card rounded-lg shadow p-6 transition-card card-hover">
-                    <div class="flex justify-between items-start">
+                <!-- Avg. Completion Time Card -->
+                <div class="dark-card p-6">
+                    <div class="flex justify-between">
                         <div>
-                            <p class="text-gray-400">Experience</p>
-                            <h3 class="text-3xl font-bold">{{ employee.experience }}</h3>
+                            <p class="text-gray-400 text-sm font-medium">Avg. Completion</p>
+                            <h3 class="text-3xl font-bold mt-1">{{ "%.1f"|format(dashboard.avg_completion_time) }}</h3>
+                            <p class="text-xs mt-2 text-gray-400">days per task</p>
                         </div>
-                        <div class="bg-purple-900 p-3 rounded-full">
-                            <i class="fas fa-star text-purple-400"></i>
+                        <div class="w-16 h-16 bg-blue-900 rounded-full flex items-center justify-center">
+                            <i class="fas fa-clock text-blue-400 text-2xl"></i>
                         </div>
                     </div>
                 </div>
                 
-                <div class="dark-card rounded-lg shadow p-6 transition-card card-hover">
-                    <div class="flex justify-between items-start">
+                <!-- Experience Card -->
+                <div class="dark-card p-6">
+                    <div class="flex justify-between">
                         <div>
-                            <p class="text-gray-400">Pending Tasks</p>
-                            <h3 class="text-3xl font-bold">{{ pending_tasks|length }}</h3>
+                            <p class="text-gray-400 text-sm font-medium">Experience</p>
+                            <h3 class="text-3xl font-bold mt-1">{{ employee.experience }}</h3>
+                            <p class="text-xs mt-2 text-gray-400">years with company</p>
                         </div>
-                        <div class="bg-yellow-900 p-3 rounded-full">
-                            <i class="fas fa-clipboard-list text-yellow-400"></i>
+                        <div class="w-16 h-16 bg-yellow-900 rounded-full flex items-center justify-center">
+                            <i class="fas fa-star text-yellow-400 text-2xl"></i>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                <!-- Performance Over Time -->
-                <div class="dark-card rounded-lg shadow p-6">
-                    <h3 class="text-lg font-bold mb-4">Performance Over Time</h3>
+            <!-- Main Content Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                <!-- Performance Chart -->
+                <div class="dark-card p-6 lg:col-span-2">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold">Performance History</h3>
+                        <select class="bg-gray-800 border border-gray-700 rounded px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                            <option>Last 6 Months</option>
+                            <option>Last Year</option>
+                            <option>All Time</option>
+                        </select>
+                    </div>
                     <div class="h-64">
                         <canvas id="performanceChart"></canvas>
                     </div>
                 </div>
-
-                <!-- Skills Distribution -->
-                <div class="dark-card rounded-lg shadow p-6">
-                    <h3 class="text-lg font-bold mb-4">Your Skills</h3>
-                    <div class="h-64">
-                        <canvas id="skillsChart"></canvas>
+                
+                <!-- Skills Section -->
+                <div class="dark-card p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold">My Skills</h3>
+                        <button onclick="showAddSkillModal()" class="text-indigo-400 hover:text-indigo-300 text-sm">
+                            <i class="fas fa-plus mr-1"></i> Add Skill
+                        </button>
+                    </div>
+                    
+                    <div class="flex flex-wrap gap-2 mb-4">
+                        {% if employee.skills %}
+                            {% for skill in employee.skills %}
+                            <div class="skill-tag">
+                                {{ skill }}
+                                <span class="remove-skill" onclick="removeSkill('{{ skill }}')">
+                                    <i class="fas fa-times"></i>
+                                </span>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-gray-400 text-sm">No skills added yet</p>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mt-6">
+                        <h4 class="font-medium mb-2 text-sm">Skill Recommendations</h4>
+                        <div class="space-y-2">
+                            {% for skill in ['Python', 'Docker', 'Kubernetes', 'AWS', 'React'] %}
+                            {% if skill not in employee.skills %}
+                            <div class="flex justify-between items-center p-2 hover:bg-gray-800 rounded cursor-pointer">
+                                <span>{{ skill }}</span>
+                                <button onclick="addSkill('{{ skill }}')" class="text-xs bg-indigo-900 hover:bg-indigo-800 px-2 py-1 rounded">
+                                    Add
+                                </button>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Tasks Overview -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                <!-- Pending Tasks -->
-                <div class="dark-card rounded-lg shadow">
-                    <div class="p-4 border-b border-gray-700">
-                        <h3 class="text-lg font-bold">Pending Tasks ({{ pending_tasks|length }})</h3>
+            <!-- Task Status Sections -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <!-- Assigned Tasks -->
+<!-- Assigned Tasks Section -->
+<div class="dark-card p-6">
+    <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold">Assigned Tasks</h3>
+        <span class="bg-blue-900 text-blue-200 px-2.5 py-0.5 rounded-full text-xs">
+            {{ pending_tasks|length }} waiting
+        </span>
+    </div>
+    
+    <div class="space-y-3">
+        {% if pending_tasks %}
+            {% for task in pending_tasks %}
+            <div class="task-card p-4 rounded-lg border border-gray-700">
+                <!-- Task Header Row -->
+                <div class="flex justify-between items-start mb-1">
+                    <div>
+                        <span class="text-xs text-gray-400 font-mono">#{{ task.task_id }}</span>
+                        <h4 class="font-medium">{{ task.title }}</h4>
                     </div>
-                    <div class="p-4 max-h-80 overflow-y-auto">
-                        {% if pending_tasks|length > 0 %}
-                            {% for task in pending_tasks %}
-                            <div class="mb-4 p-3 bg-gray-800 rounded-lg">
-                                <div class="flex justify-between items-start mb-2">
-                                    <h4 class="font-medium">{{ task.task_id }}</h4>
-                                    <span class="bg-yellow-900 text-yellow-200 text-xs font-medium px-2.5 py-0.5 rounded">
-                                        {{ task.priority }}
-                                    </span>
-                                </div>
-                                <p class="text-sm text-gray-400 mb-2">{{ task.project_type|replace('_', ' ')|title }}</p>
-                                <p class="text-xs text-gray-500 mb-3">Assigned: {{ task.assigned_at|default('N/A')|datetime }}</p>
-                                <div class="flex justify-end">
-                                    <button class="bg-indigo-700 text-white px-3 py-1 rounded hover:bg-indigo-800 text-sm" 
-                                            onclick="startTask('{{ task.task_id }}')">
-                                        Start Task
-                                    </button>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        {% else %}
-                            <p class="text-gray-400 text-center py-8">No pending tasks</p>
-                        {% endif %}
+                    <span class="status-badge status-{{ task.status }}">
+                        {{ task.status|replace('_', ' ')|title }}
+                    </span>
+                </div>
+                
+                <!-- Project Type and Metadata -->
+                <div class="flex items-center text-sm text-gray-400 mb-2">
+                    <span class="bg-gray-700 px-2 py-0.5 rounded mr-2">
+                        {{ task.project_type|replace('_', ' ')|title }}
+                    </span>
+                    <span>
+                        <i class="fas fa-calendar-alt mr-1"></i>
+                        Assigned: {{ format_date(task.assignment_date) }}
+                    </span>
+                </div>
+                
+                <!-- Task Description -->
+                <p class="text-sm text-gray-400 mb-3 line-clamp-2">{{ task.description }}</p>
+                
+                <!-- Footer with Actions -->
+                <div class="flex justify-between items-center text-sm">
+                    <div>
+                        <span class="text-gray-400">Due:</span>
+                        <span class="ml-1 {{ 'text-red-400' if task.is_overdue else '' }}">
+                            {{ format_date(task.due_date) }}
+                            {% if task.is_overdue %}
+                            <span class="text-xs ml-1">(overdue)</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="space-x-2">
+                        <button onclick="startTask('{{ task.task_id }}')" 
+                                class="bg-yellow-700 hover:bg-yellow-600 text-white px-3 py-1 rounded text-xs transition-colors">
+                            Start Task
+                        </button>
+                        <a href="/task/{{ task.task_id }}" 
+                           class="text-indigo-400 hover:text-indigo-300 text-xs border border-indigo-400 px-2 py-1 rounded">
+                            Details
+                        </a>
                     </div>
                 </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-center py-8">
+                <i class="fas fa-check-circle text-gray-500 text-4xl mb-3"></i>
+                <p class="text-gray-400">No assigned tasks</p>
+                <p class="text-xs text-gray-500 mt-1">You're all caught up!</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
                 
                 <!-- In Progress Tasks -->
-                <div class="dark-card rounded-lg shadow">
-                    <div class="p-4 border-b border-gray-700">
-                        <h3 class="text-lg font-bold">In Progress ({{ in_progress_tasks|length }})</h3>
+                <div class="dark-card p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold">In Progress</h3>
+                        <span class="bg-yellow-900 text-yellow-200 px-2.5 py-0.5 rounded-full text-xs">
+                            {{ in_progress_tasks|length }} active
+                        </span>
                     </div>
-                    <div class="p-4 max-h-80 overflow-y-auto">
-                        {% if in_progress_tasks|length > 0 %}
+                    
+                    <div class="space-y-3">
+                        {% if in_progress_tasks %}
                             {% for task in in_progress_tasks %}
-                            <div class="mb-4 p-3 bg-gray-800 rounded-lg">
+                            <div class="task-card p-4 rounded-lg border border-gray-700">
                                 <div class="flex justify-between items-start mb-2">
-                                    <h4 class="font-medium">{{ task.task_id }}</h4>
-                                    <span class="bg-blue-900 text-blue-200 text-xs font-medium px-2.5 py-0.5 rounded">
-                                        {{ task.complexity }}
+                                    <h4 class="font-medium">{{ task.title }}</h4>
+                                    <span class="status-badge status-{{ task.status }}">
+                                        {{ task.status|replace('_', ' ')|title }}
                                     </span>
                                 </div>
-                                <p class="text-sm text-gray-400 mb-2">{{ task.project_type|replace('_', ' ')|title }}</p>
-                                <p class="text-xs text-gray-500 mb-3">Started: {{ task.start_date|default('N/A')|datetime }}</p>
-                                <div class="flex justify-end">
-                                    <button class="bg-green-700 text-white px-3 py-1 rounded hover:bg-green-800 text-sm" 
-                                            onclick="completeTask('{{ task.task_id }}')">
-                                        Complete
-                                    </button>
+                                <p class="text-sm text-gray-400 mb-3 line-clamp-2">{{ task.description }}</p>
+                                <div class="flex justify-between items-center text-sm">
+                                    <div>
+                                        <span class="text-gray-400">Started:</span>
+                                        <span class="ml-1">{{ format_date(task.start_date) }}</span>
+                                    </div>
+                                    <div class="space-x-2">
+                                        <button onclick="submitForApproval('{{ task.task_id }}')" 
+                                                class="bg-purple-700 hover:bg-purple-600 text-white px-3 py-1 rounded text-xs transition-colors">
+                                            Submit
+                                        </button>
+                                        <a href="/task/{{ task.task_id }}" class="text-indigo-400 hover:text-indigo-300 text-xs">
+                                            Details
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                             {% endfor %}
                         {% else %}
-                            <p class="text-gray-400 text-center py-8">No tasks in progress</p>
+                            <div class="text-center py-8">
+                                <i class="fas fa-hourglass-half text-gray-500 text-4xl mb-3"></i>
+                                <p class="text-gray-400">No active tasks</p>
+                                <p class="text-xs text-gray-500 mt-1">Start working on assigned tasks</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Second Row of Task Status Sections -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <!-- Pending Approval Tasks -->
+                <div class="dark-card p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold">Pending Approval</h3>
+                        <span class="bg-purple-900 text-purple-200 px-2.5 py-0.5 rounded-full text-xs">
+                            {{ pending_approval_tasks|length }} submitted
+                        </span>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        {% if pending_approval_tasks %}
+                            {% for task in pending_approval_tasks %}
+                            <div class="task-card p-4 rounded-lg border border-gray-700">
+                                <div class="flex justify-between items-start mb-2">
+                                    <h4 class="font-medium">{{ task.title }}</h4>
+                                    <span class="status-badge status-{{ task.status }}">
+                                        {{ task.status|replace('_', ' ')|title }}
+                                    </span>
+                                </div>
+                                <p class="text-sm text-gray-400 mb-3 line-clamp-2">{{ task.description }}</p>
+                                <div class="flex justify-between items-center text-sm">
+                                    <div>
+                                        <span class="text-gray-400">Submitted:</span>
+                                        <span class="ml-1">{{ format_date(task.submission_date) }}</span>
+                                    </div>
+                                    <div>
+                                        <a href="/task/{{ task_id }}" class="text-indigo-400 hover:text-indigo-300 text-xs">
+                                            View Details
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="text-center py-8">
+                                <i class="fas fa-clipboard-check text-gray-500 text-4xl mb-3"></i>
+                                <p class="text-gray-400">No pending approvals</p>
+                                <p class="text-xs text-gray-500 mt-1">Submit tasks for review</p>
+                            </div>
                         {% endif %}
                     </div>
                 </div>
                 
-                <!-- Recent Completed Tasks -->
-                <div class="dark-card rounded-lg shadow">
-                    <div class="p-4 border-b border-gray-700">
+                <!-- Completed Tasks Preview -->
+                <div class="dark-card p-6">
+                    <div class="flex justify-between items-center mb-4">
                         <h3 class="text-lg font-bold">Recently Completed</h3>
+                        <a href="/my_tasks?status=completed" class="text-indigo-400 hover:text-indigo-300 text-sm">
+                            View All
+                        </a>
                     </div>
-                    <div class="p-4 max-h-80 overflow-y-auto">
-                        {% if completed_tasks|length > 0 %}
-                            {% for task in completed_tasks %}
-                            <div class="mb-4 p-3 bg-gray-800 rounded-lg">
+                    
+                    <div class="space-y-3">
+                        {% if completed_tasks %}
+                            {% for task in completed_tasks[:3] %}
+                            <div class="task-card p-4 rounded-lg border border-gray-700">
                                 <div class="flex justify-between items-start mb-2">
-                                    <h4 class="font-medium">{{ task.task_id }}</h4>
-                                    <span class="bg-green-900 text-green-200 text-xs font-medium px-2.5 py-0.5 rounded">
+                                    <h4 class="font-medium">{{ task.title }}</h4>
+                                    <div class="flex items-center">
                                         {% if task.success_rating %}
-                                            Rating: {{ task.success_rating }}/5
-                                        {% else %}
-                                            Completed
+                                        <div class="rating-stars mr-2">
+                                            {% for i in range(5) %}
+                                                {% if i < task.success_rating %}
+                                                    <i class="fas fa-star text-sm"></i>
+                                                {% else %}
+                                                    <i class="far fa-star text-sm"></i>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
                                         {% endif %}
-                                    </span>
+                                        <span class="status-badge status-{{ task.status }}">
+                                            {{ task.status|replace('_', ' ')|title }}
+                                        </span>
+                                    </div>
                                 </div>
-                                <p class="text-sm text-gray-400 mb-2">{{ task.project_type|replace('_', ' ')|title }}</p>
-                                <p class="text-xs text-gray-500">Completed: {{ task.completion_date|default('N/A')|datetime }}</p>
+                                <p class="text-sm text-gray-400 mb-3 line-clamp-2">{{ task.description }}</p>
+                                <div class="flex justify-between items-center text-sm">
+                                    <div>
+                                        <span class="text-gray-400">Completed:</span>
+                                        <span class="ml-1">{{ format_date(task.completion_date) }}</span>
+                                    </div>
+                                    <div>
+                                        <a href="/task/{{ task.task_id }}" class="text-indigo-400 hover:text-indigo-300 text-xs">
+                                            View Details
+                                        </a>
+                                    </div>
+                                </div>
                             </div>
                             {% endfor %}
                         {% else %}
-                            <p class="text-gray-400 text-center py-8">No completed tasks yet</p>
+                            <div class="text-center py-8">
+                                <i class="fas fa-trophy text-gray-500 text-4xl mb-3"></i>
+                                <p class="text-gray-400">No completed tasks yet</p>
+                                <p class="text-xs text-gray-500 mt-1">Your completed tasks will appear here</p>
+                            </div>
                         {% endif %}
                     </div>
                 </div>
             </div>
-            
-            <!-- Project Types Available -->
-            <div class="dark-card rounded-lg shadow p-6 mb-8">
-                <h3 class="text-lg font-bold mb-4">Available Project Types</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {% for project_type in project_types %}
-                    <div class="border border-gray-700 rounded-lg p-4 dark-hover">
-                        <div class="flex justify-between items-start mb-3">
-                            <h4 class="font-medium">{{ project_type|replace('_', ' ')|title }}</h4>
-                            <div class="bg-indigo-900 text-indigo-200 text-xs font-medium px-2.5 py-0.5 rounded">
-                                {{ project_type }}
-                            </div>
-                        </div>
-                        <p class="text-sm text-gray-400">Skills required for this project type.</p>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
         </div>
     </div>
 
-    <!-- Task Action Modal -->
-    <div id="taskModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center">
-        <div class="dark-card rounded-lg shadow max-w-md w-full p-6">
-            <div class="flex justify-between items-start mb-4">
-                <h3 class="text-lg font-bold" id="modalTitle">Task Action</h3>
-                <button class="text-gray-400 hover:text-gray-300" onclick="closeModal()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            
-            <div id="startTaskContent" class="hidden">
-                <p class="mb-4">Are you sure you want to start working on this task?</p>
-                <div class="flex justify-end space-x-3">
-                    <button class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700" onclick="closeModal()">
-                        Cancel
-                    </button>
-                    <button class="bg-indigo-700 text-white px-4 py-2 rounded hover:bg-indigo-800" onclick="confirmStartTask()">
-                        Start Task
-                    </button>
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-gray-400 py-6 border-t border-gray-800">
+        <div class="container mx-auto px-6">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="flex items-center space-x-2 mb-4 md:mb-0">
+                    <i class="fas fa-code-branch text-indigo-400"></i>
+                    <span class="font-medium">TaskMaster v2.1</span>
+                </div>
+                <div class="flex space-x-6">
+                    <a href="#" class="hover:text-indigo-400 transition-colors">Privacy</a>
+                    <a href="#" class="hover:text-indigo-400 transition-colors">Terms</a>
+                    <a href="#" class="hover:text-indigo-400 transition-colors">Help</a>
                 </div>
             </div>
-            
-            <div id="completeTaskContent" class="hidden">
-                <p class="mb-4">Please rate your success on this task:</p>
-                <div class="flex justify-center mb-4">
-                    <div class="rating flex space-x-2">
-                        <button class="rating-star text-gray-500 text-2xl hover:text-yellow-400" data-value="1">
-                            <i class="fas fa-star"></i>
-                        </button>
-                        <button class="rating-star text-gray-500 text-2xl hover:text-yellow-400" data-value="2">
-                            <i class="fas fa-star"></i>
-                        </button>
-                        <button class="rating-star text-gray-500 text-2xl hover:text-yellow-400" data-value="3">
-                            <i class="fas fa-star"></i>
-                        </button>
-                        <button class="rating-star text-gray-500 text-2xl hover:text-yellow-400" data-value="4">
-                            <i class="fas fa-star"></i>
-                        </button>
-                        <button class="rating-star text-gray-500 text-2xl hover:text-yellow-400" data-value="5">
-                            <i class="fas fa-star"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="flex justify-end space-x-3">
-                    <button class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700" onclick="closeModal()">
-                        Cancel
-                    </button>
-                    <button class="bg-green-700 text-white px-4 py-2 rounded hover:bg-green-800" onclick="confirmCompleteTask()">
-                        Complete Task
-                    </button>
-                </div>
+            <div class="mt-4 text-center md:text-left text-xs text-gray-500">
+                &copy; 2025 TaskMaster Technologies. All rights reserved.
             </div>
         </div>
-    </div>
+    </footer>
 
+    <!-- JavaScript -->
     <script>
-        
-        // Initialize Charts
+        // Initialize Performance Chart
         document.addEventListener('DOMContentLoaded', function() {
-            // Set Chart.js defaults for dark theme
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            
+            // Configure Chart.js defaults for dark theme
             Chart.defaults.color = '#e0e0e0';
-            Chart.defaults.scale.grid.color = '#333';
+            Chart.defaults.borderColor = '#333';
             
-            // Performance Chart
-            const performanceCtx = document.getElementById('performanceChart').getContext('2d');
-            
-            // Sample data - in a real app, this would come from the server
+            // Prepare performance data
             const performanceData = {
-                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                labels: {{ performance_history.labels|tojson }},
                 datasets: [{
                     label: 'Success Rate',
-                    data: [75, 78, 80, 82, 85, 88],
-                    borderColor: 'rgba(99, 102, 241, 1)',
-                    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                    data: {{ performance_history.success_rates|tojson }},
+                    borderColor: '#6366f1',
+                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                    tension: 0.4,
                     fill: true,
-                    tension: 0.3
+                    borderWidth: 2,
+                    pointBackgroundColor: '#6366f1',
+                    pointRadius: 4,
+                    pointHoverRadius: 6
                 }]
             };
             
-            new Chart(performanceCtx, {
+            // Create chart
+            new Chart(ctx, {
                 type: 'line',
                 data: performanceData,
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.parsed.y.toFixed(1) + '% success';
+                                }
+                            }
+                        }
+                    },
                     scales: {
                         y: {
                             beginAtZero: false,
-                            min: 50,
-                            max: 100
-                        }
-                    }
-                }
-            });
-            
-            // Skills Chart
-            const skillsCtx = document.getElementById('skillsChart').getContext('2d');
-            
-            // This would typically come from the server with your actual skills
-            const skillsData = {
-                labels: [{% for skill in employee.skills %}'{{ skill }}'{% if not loop.last %}, {% endif %}{% endfor %}],
-                datasets: [{
-                    label: 'Skill Level',
-                    data: [{% for skill in employee.skills %}{{ range(70, 100)|random }}{% if not loop.last %}, {% endif %}{% endfor %}],
-                    backgroundColor: [
-                        'rgba(99, 102, 241, 0.7)',
-                        'rgba(124, 58, 237, 0.7)',
-                        'rgba(236, 72, 153, 0.7)',
-                        'rgba(239, 68, 68, 0.7)',
-                        'rgba(245, 158, 11, 0.7)',
-                    ],
-                }]
-            };
-            
-            new Chart(skillsCtx, {
-                type: 'radar',
-                data: skillsData,
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        r: {
-                            beginAtZero: true,
-                            max: 100,
+                            min: Math.max(0, Math.min(...performanceData.datasets[0].data) - 10),
+                            max: Math.min(100, Math.max(...performanceData.datasets[0].data) + 10),
+                            grid: {
+                                color: '#333'
+                            },
                             ticks: {
-                                display: false
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: '#333'
                             }
                         }
                     }
@@ -440,126 +644,115 @@
             });
         });
         
-        // Task Management Variables
-        let currentTaskId = null;
-        let selectedRating = 3; // Default rating
-        
-        // Modal Functions
-        function closeModal() {
-            document.getElementById('taskModal').classList.add('hidden');
-            document.getElementById('startTaskContent').classList.add('hidden');
-            document.getElementById('completeTaskContent').classList.add('hidden');
-            resetRatingStars();
-        }
-        
-        function startTask(taskId) {
-            currentTaskId = taskId;
-            document.getElementById('modalTitle').textContent = 'Start Task: ' + taskId;
-            document.getElementById('startTaskContent').classList.remove('hidden');
-            document.getElementById('taskModal').classList.remove('hidden');
-        }
-        
-        function completeTask(taskId) {
-            currentTaskId = taskId;
-            document.getElementById('modalTitle').textContent = 'Complete Task: ' + taskId;
-            document.getElementById('completeTaskContent').classList.remove('hidden');
-            document.getElementById('taskModal').classList.remove('hidden');
-        }
-        
-        function confirmStartTask() {
-            // Make API request to update task status
-            fetch('/update_task_status', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    task_id: currentTaskId,
-                    status: 'in_progress'
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Refresh the page to show updated task lists
-                    window.location.reload();
-                } else {
-                    alert('Failed to update task: ' + (data.error || 'Unknown error'));
-                    closeModal();
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while updating the task');
-                closeModal();
+        // Task Management Functions
+        function startTask(task_id) {
+    // Check if task_id is valid
+    if (!task_id || task_id.trim() === '') {
+        console.error('Task ID is missing or invalid');
+        alert('Cannot start task: Missing task ID');
+        return;
+    }
+    
+    console.log('Starting task with ID:', task_id);
+    
+    // Send the request to update task status
+    fetch('/update_task_status', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+            task_id: task_id,
+            status: 'in_progress'
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || `HTTP error! Status: ${response.status}`);
             });
         }
-        
-        function confirmCompleteTask() {
-            // Make API request to update task status
-            fetch('/update_task_status', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    task_id: currentTaskId,
-                    status: 'completed',
-                    rating: selectedRating
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Refresh the page to show updated task lists
-                    window.location.reload();
-                } else {
-                    alert('Failed to update task: ' + (data.error || 'Unknown error'));
-                    closeModal();
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while updating the task');
-                closeModal();
-            });
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            console.log('Task started successfully');
+            alert('Task started successfully!');
+            window.location.reload();
+        } else {
+            alert('Failed to start task: ' + (data.error || 'Unknown error'));
         }
-        
-        // Rating Star Functions
-        document.querySelectorAll('.rating-star').forEach(star => {
-            star.addEventListener('click', function() {
-                const value = parseInt(this.getAttribute('data-value'));
-                selectedRating = value;
-                updateRatingStars(value);
-            });
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while starting the task: ' + error.message);
+    });
+}
+
+// Function to view task details
+function viewTaskDetails(task_id) {
+    if (!task_id || task_id.trim() === '') {
+        console.error('Task ID is missing or invalid');
+        alert('Cannot view task: Missing task ID');
+        return;
+    }
+    
+    window.location.href = `/task_details/${task_id}`;
+}
+// Make sure this JavaScript function is included in your template or JS file
+async function submitForApproval(task_id) {
+    try {
+        const response = await fetch('/submit_task_for_review', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ task_id })
         });
+
+        const result = await response.json();
         
-        function updateRatingStars(rating) {
-            document.querySelectorAll('.rating-star').forEach(star => {
-                const starValue = parseInt(star.getAttribute('data-value'));
-                if (starValue <= rating) {
-                    star.classList.remove('text-gray-500');
-                    star.classList.add('text-yellow-400');
-                } else {
-                    star.classList.remove('text-yellow-400');
-                    star.classList.add('text-gray-500');
-                }
-            });
+        if (!response.ok) {
+            throw new Error(result.error || 'Submission failed');
+        }
+
+        // Display the server-returned submission time rather than local time
+        const submittedTime = new Date(result.task.submitted_at).toLocaleString();
+        
+        // Update the status in the UI immediately without page reload
+        const taskRow = document.querySelector(`tr[data-task-id="${task_id}"]`);
+        if (taskRow) {
+            // Update status cell
+            const statusCell = taskRow.querySelector('td.status-cell');
+            if (statusCell) statusCell.textContent = 'submitted';
+            
+            // Update submitted_at cell
+            const submittedAtCell = taskRow.querySelector('td.submitted-at-cell');
+            if (submittedAtCell) submittedAtCell.textContent = submittedTime;
+            
+            // Highlight the row briefly to show it was updated
+            taskRow.classList.add('updated-row');
+            setTimeout(() => {
+                taskRow.classList.remove('updated-row');
+            }, 2000);
+        }
+
+        alert(`Task ${task_id} submitted successfully at ${submittedTime}`);
+    } catch (error) {
+        console.error('Error:', error);
+        alert(`Submission failed: ${error.message}`);
+    }
+}
+        
+        // Modal Functions (placeholder implementations)
+        function showTaskReportModal() {
+            alert('Task report modal would appear here');
         }
         
-        function resetRatingStars() {
-            selectedRating = 3;
-            document.querySelectorAll('.rating-star').forEach(star => {
-                star.classList.remove('text-yellow-400');
-                star.classList.add('text-gray-500');
-            });
+        function showTimeOffModal() {
+            alert('Time off request modal would appear here');
         }
     </script>
-
-    <footer class="bg-gray-900 text-gray-300 p-4 mt-8">
-        <div class="container mx-auto text-center">
-            <p>TaskMaster - Project Management System &copy; 2025</p>
-        </div>
-    </footer>
 </body>
 </html>

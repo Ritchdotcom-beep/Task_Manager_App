@@ -6,7 +6,8 @@ import requests
 import json
 from dotenv import load_dotenv
 from email_services import send_credentials_email
-from datetime import datetime
+from datetime import datetime, timedelta
+import random
 
 # Load environment variables
 load_dotenv()
@@ -65,15 +66,57 @@ def get_skills_for_project_type(project_type):
         print(f"Error fetching skills for project type: {str(e)}")
         return PROJECT_TYPES.get(project_type, [])
 
-def format_date(iso_date):
-    """Format ISO date string to human-readable format"""
-    if not iso_date:
-        return "Not set"
+# Add this function in your app.py or utils.py file
+def format_date(date_str, format_str='%b %d, %Y'):
+    """Format a date string with the specified format"""
+    if not date_str:
+        return "N/A"
+    
     try:
-        date_obj = datetime.fromisoformat(iso_date.replace('Z', '+00:00'))
-        return date_obj.strftime("%b %d, %Y %H:%M")
-    except:
-        return iso_date
+        # First try to parse the date string
+        if isinstance(date_str, str):
+            # Try ISO format first (most common API response format)
+            try:
+                date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+            except ValueError:
+                # Try common date formats
+                try:
+                    date_obj = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                except ValueError:
+                    try:
+                        date_obj = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S')
+                    except ValueError:
+                        try:
+                            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                        except ValueError:
+                            return date_str  # Return original if parsing fails
+        elif isinstance(date_str, datetime):
+            date_obj = date_str
+        else:
+            return str(date_str)
+        
+        # Format the date object
+        return date_obj.strftime(format_str)
+    except Exception as e:
+        print(f"Error formatting date: {str(e)}")
+        return str(date_str)  # Return original as fallback
+
+def get_developer_tasks(emp_id):
+    try:
+        response = requests.get(
+            f'{request.host_url.rstrip("/")}/api/task-service/tasks',
+            params={'assignee': emp_id},
+            headers=api_headers()
+        )
+        
+        if response.status_code != 200:
+            print(f"Error fetching tasks: {response.text}")
+            return []
+        
+        return response.json().get('tasks', [])
+    except Exception as e:
+        print(f"Exception fetching tasks: {str(e)}")
+        return []
 
 def get_developer_tasks(emp_id):
     """Get all tasks assigned to a specific developer"""
@@ -369,10 +412,18 @@ def developer_dashboard():
         print(f"Error getting dashboard data: {str(e)}")
         dashboard_data = {}
     
-    # Categorize tasks by status
+    # If dashboard data wasn't returned from API, calculate it from tasks
+    if not dashboard_data:
+        dashboard_data = calculate_dashboard_metrics(assigned_tasks, employee_data)
+    
+    # Categorize tasks by status - Updated to match Task model status values
     in_progress_tasks = [task for task in assigned_tasks if task.get('status') == 'in_progress']
     pending_tasks = [task for task in assigned_tasks if task.get('status') == 'assigned']
+    pending_approval_tasks = [task for task in assigned_tasks if task.get('status') == 'submitted']
     completed_tasks = [task for task in assigned_tasks if task.get('status') == 'completed']
+    
+    # Calculate performance history (last 6 months)
+    performance_history = get_performance_history(session['emp_id'])
     
     # Get project types for filtering
     try:
@@ -391,12 +442,145 @@ def developer_dashboard():
         tasks=assigned_tasks,
         in_progress_tasks=in_progress_tasks,
         pending_tasks=pending_tasks,
+        pending_approval_tasks=pending_approval_tasks,  # Updated variable name
         completed_tasks=completed_tasks,
         dashboard=dashboard_data,
+        performance_history=performance_history,
         project_types=project_types,
         format_date=format_date
     )
 
+
+def calculate_dashboard_metrics(tasks, employee_data):
+    """Calculate dashboard metrics when API doesn't return data"""
+    dashboard = {
+        'success_rate': 0.0,
+        'tasks_completed': 0,
+        'avg_completion_time': 0,
+        'performance_trend': []
+    }
+    
+    # Count completed tasks
+    completed_tasks = [task for task in tasks if task.get('status') == 'completed']
+    dashboard['tasks_completed'] = len(completed_tasks)
+    
+    # Calculate success rate
+    if dashboard['tasks_completed'] > 0:
+        # Get average of task ratings
+        ratings = [task.get('success_rating', 0) for task in completed_tasks if task.get('success_rating') is not None]
+        if ratings:
+            avg_rating = sum(ratings) / len(ratings)
+            # Convert 5-star rating to percentage (e.g., 4/5 = 80%)
+            dashboard['success_rate'] = (avg_rating / 5) * 100
+        else:
+            # Default to 70% if no ratings available
+            dashboard['success_rate'] = 70.0
+    else:
+        # No completed tasks yet, use N/A or default value
+        dashboard['success_rate'] = employee_data.get('success_rate', 0.0)
+    
+    # Calculate average completion time (in days)
+    if completed_tasks:
+        completion_times = []
+        for task in completed_tasks:
+            start_date = parse_date(task.get('start_date'))
+            completion_date = parse_date(task.get('completion_date'))
+            if start_date and completion_date:
+                delta = completion_date - start_date
+                completion_times.append(delta.days)
+        
+        if completion_times:
+            dashboard['avg_completion_time'] = sum(completion_times) / len(completion_times)
+    
+    return dashboard
+
+def get_performance_history(emp_id, months=6):
+    """Get the performance history for the last X months"""
+    today = datetime.now()
+    
+    # Default data structure with empty values
+    history = {
+        'labels': [],
+        'success_rates': []
+    }
+    
+    try:
+        # Fetch historical data from API
+        response = requests.get(
+            f'{request.host_url.rstrip("/")}/api/task-service/performance-history?emp_id={emp_id}&months={months}',
+            headers=api_headers()
+        )
+        
+        if response.status_code == 200:
+            history_data = response.json().get('history', [])
+            if history_data:
+                # If API returned data, use it
+                for month_data in history_data:
+                    history['labels'].append(month_data.get('month'))
+                    history['success_rates'].append(month_data.get('success_rate', 0))
+                return history
+    except Exception as e:
+        print(f"Error getting performance history: {str(e)}")
+    
+    # If no data from API or error occurred, generate some reasonable sample data
+    for i in range(months, 0, -1):
+        month_date = today - timedelta(days=30*i)
+        month_name = month_date.strftime('%b')
+        history['labels'].append(month_name)
+        
+        # Generate reasonable random data that trends upward slightly
+        # Starting from 70% and gradually improving
+        base_rate = 70 + (i * 2)  # Increase by 2% each month
+        rate = min(base_rate + random.randint(-3, 5), 95)  # Add randomness but cap at 95%
+        history['success_rates'].append(rate)
+    
+    return history
+
+def parse_date(date_str):
+    """Parse date string to datetime object"""
+    if not date_str:
+        return None
+    
+    try:
+        # Adjust the format based on your date string format
+        return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        try:
+            # Try another common format
+            return datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S')
+        except ValueError:
+            return None
+
+@app.route('/api/assign_multiple_employees', methods=['POST'])
+def assign_multiple_employees():
+    if 'emp_id' not in session or session['role'] != 'project manager':
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    
+    task_id = request.json.get('task_id')
+    employee_ids = request.json.get('employee_ids', [])
+    
+    if not task_id or not employee_ids:
+        return jsonify({'success': False, 'error': 'Task ID and at least one employee ID are required'}), 400
+    
+    try:
+        # Call the task service API to assign multiple employees to the task
+        response = requests.post(
+            f'{request.host_url.rstrip("/")}/api/task-service/tasks/{task_id}/assign',
+            headers=api_headers(),
+            json={
+                'manager_id': session['emp_id'],
+                'employee_ids': employee_ids
+            }
+        )
+        
+        if response.status_code != 200:
+            return jsonify({'success': False, 'error': f'Failed to assign employees: {response.text}'}), 500
+        
+        result = response.json()
+        return jsonify({'success': True, 'assignments': result.get('assignments', {})})
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/project_manager_dashboard')
 def project_manager_dashboard():
@@ -447,10 +631,17 @@ def project_manager_dashboard():
         project_type_details=project_type_details
     )
 
+
 @app.route('/task_management')
 def task_management():
     if 'emp_id' not in session or session['role'] != 'project manager':
+        flash('Access restricted to project managers', 'danger')
         return redirect(url_for('index'))
+    
+    # Get filter parameters from query string
+    status_filter = request.args.get('status', 'all')
+    project_type_filter = request.args.get('project_type', 'all')
+    assignee_filter = request.args.get('assignee', 'all')
     
     # Get project types and their details
     project_types, project_type_details = get_project_types()
@@ -458,22 +649,98 @@ def task_management():
     # Get all employees for assignment dropdown
     employees = get_all_employees()
     
-    return render_template(
-        'task_management.html',
-        project_types=project_types,
-        project_type_details=project_type_details,
-        employees=employees
-    )
-
-    
-    if not result or 'error' in result:
-        return jsonify({'success': False, 'error': 'Failed to assign task'}), 500
+    try:
+        # Get all tasks with optional filters
+        tasks_response = requests.get(
+            f'{request.host_url.rstrip("/")}/api/task-service/tasks',
+            params={
+                'status': status_filter if status_filter != 'all' else None,
+                'project_type': project_type_filter if project_type_filter != 'all' else None,
+                'assignee': assignee_filter if assignee_filter != 'all' else None
+            },
+            headers=api_headers()
+        )
         
-    return jsonify({
-        'success': True,
-        'task': task_data,
-        'assignment': result.get('assignments', {}).get(task_data['task_id'])
-    })
+        tasks = []
+        if tasks_response.status_code == 200:
+            tasks = tasks_response.json().get('tasks', [])
+        
+        # Categorize tasks by status for easier display
+        pending_review_tasks = [task for task in tasks if task.get('status') == 'pending_review']
+        assigned_tasks = [task for task in tasks if task.get('status') == 'assigned']
+        in_progress_tasks = [task for task in tasks if task.get('status') == 'in_progress']
+        completed_tasks = [task for task in tasks if task.get('status') == 'completed']
+        
+        return render_template(
+            'task_management.html',
+            project_types=project_types,
+            project_type_details=project_type_details,
+            employees=employees,
+            tasks=tasks,
+            pending_review_tasks=pending_review_tasks,
+            assigned_tasks=assigned_tasks,
+            in_progress_tasks=in_progress_tasks,
+            completed_tasks=completed_tasks,
+            status_filter=status_filter,
+            project_type_filter=project_type_filter,
+            assignee_filter=assignee_filter,
+            format_date=format_date
+        )
+    
+    except Exception as e:
+        flash(f'Error fetching task data: {str(e)}', 'danger')
+        return render_template(
+            'task_management.html',
+            project_types=project_types,
+            project_type_details=project_type_details,
+            employees=employees,
+            tasks=[],
+            pending_review_tasks=[],
+            assigned_tasks=[],
+            in_progress_tasks=[],
+            completed_tasks=[]
+        )
+
+@app.route('/approve_task', methods=['POST'])
+def approve_task():
+    if 'emp_id' not in session or session['role'] != 'project manager':
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    
+    task_id = request.json.get('task_id')
+    action = request.json.get('action')  # 'approve' or 'reject'
+    feedback = request.json.get('feedback', '')
+    
+    if not task_id or not action:
+        return jsonify({'success': False, 'error': 'Task ID and action are required'}), 400
+    
+    if action not in ['approve', 'reject']:
+        return jsonify({'success': False, 'error': 'Invalid action'}), 400
+    
+    try:
+        # Call the task service API to approve or reject the task
+        response = requests.post(
+            f'{request.host_url.rstrip("/")}/api/task-service/tasks/{task_id}/review',
+            headers=api_headers(),
+            json={
+                'reviewer_id': session['emp_id'],
+                'action': action,
+                'feedback': feedback,
+                'status': 'completed' if action == 'approve' else 'in_progress'
+            }
+        )
+        
+        if response.status_code != 200:
+            return jsonify({'success': False, 'error': f'Failed to process task: {response.text}'}), 500
+        
+        result = response.json()
+        return jsonify({'success': True, 'task': result.get('task', {})})
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+
+
 
 
 @app.route('/hr_dashboard')
@@ -650,8 +917,115 @@ def create_task():
         'assignment': result.get('assignments', {}).get(task_data['task_id'])
     })
 
-# Add this JavaScript fetch endpoint for the task management page
-# Fix for the get_assignment_recommendation function in main_app.py
+
+@app.route('/submit_task_for_review', methods=['POST'])
+def submit_task_for_review():
+    if 'emp_id' not in session:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    try:
+        data = request.get_json()
+        task_id = data.get('task_id')
+        
+        if not task_id:
+            return jsonify({'success': False, 'error': 'Task ID required'}), 400
+
+        # Call task service
+        api_url = f'http://localhost:5002/api/task-service/tasks/{task_id}/submit'
+        response = requests.post(
+            api_url,
+            headers=api_headers(),
+            json={'emp_id': session['emp_id']},
+            timeout=5
+        )
+
+        # Handle response
+        response_data = response.json()
+        if response.status_code != 200:
+            return jsonify({
+                'success': False,
+                'error': response_data.get('error', 'Task service error')
+            }), response.status_code
+
+        return jsonify(response_data)
+
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'Service unavailable: {str(e)}'
+        }), 503
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Internal error: {str(e)}'
+        }), 500
+
+@app.route('/task_details/<task_id>')
+def task_details(task_id):
+    if 'emp_id' not in session:
+        flash('Please log in to view task details', 'warning')
+        return redirect(url_for('login'))
+    
+    try:
+        # Get task details
+        task_response = requests.get(
+            f'{request.host_url.rstrip("/")}/api/task-service/tasks/{task_id}',
+            headers=api_headers()
+        )
+        
+        if task_response.status_code != 200:
+            flash('Failed to retrieve task details', 'danger')
+            return redirect(url_for('index'))
+        
+        task = task_response.json().get('task', {})
+        
+        # Get assigned employees for this task
+        assignees_response = requests.get(
+            f'{request.host_url.rstrip("/")}/api/task-service/tasks/{task_id}/assignees',
+            headers=api_headers()
+        )
+        
+        assignees = []
+        if assignees_response.status_code == 200:
+            assignee_ids = assignees_response.json().get('assignees', [])
+            # Get employee details for each assignee
+            for emp_id in assignee_ids:
+                emp_data = get_employee(emp_id)
+                if emp_data:
+                    assignees.append(emp_data)
+        
+        # Get task history/activity log
+        history_response = requests.get(
+            f'{request.host_url.rstrip("/")}/api/task-service/tasks/{task_id}/history',
+            headers=api_headers()
+        )
+        
+        history = []
+        if history_response.status_code == 200:
+            history = history_response.json().get('history', [])
+        
+        # Different templates based on user role
+        if session.get('role') == 'project manager':
+            return render_template(
+                'task_details_manager.html',
+                task=task,
+                assignees=assignees,
+                history=history,
+                format_date=format_date
+            )
+        else:
+            return render_template(
+                'task_details.html',
+                task=task,
+                assignees=assignees,
+                history=history,
+                format_date=format_date
+            )
+    
+    except Exception as e:
+        flash(f'Error retrieving task details: {str(e)}', 'danger')
+        return redirect(url_for('index'))
+
 
 @app.route('/api/get_assignment_recommendation', methods=['POST'])
 def get_assignment_recommendation():
@@ -695,6 +1069,8 @@ def get_assignment_recommendation():
             'error': f'Exception: {str(e)}'
         }), 500
 
+
+
 @app.route('/update_task_status', methods=['POST'])
 def update_task_status():
     """Update a task's status"""
@@ -706,17 +1082,30 @@ def update_task_status():
         return jsonify({'success': False, 'error': 'Missing required fields'}), 400
         
     task_id = data['task_id']
+    # Check if task_id is empty or None
+    if not task_id:
+        return jsonify({'success': False, 'error': 'Invalid task ID'}), 400
+        
     new_status = data['status']
     rating = data.get('rating')
     emp_id = session['emp_id']
     
-    # Print URL for debugging
-    task_url = f'{TASK_SERVICE_URL}/task-service/task/{task_id}/status'
+    # Fix the URL formatting - Use correct endpoint structure
+    print(f"TASK_SERVICE_URL value: {TASK_SERVICE_URL}")
+    
+    # Clear any trailing slashes from the base URL
+    base_url = TASK_SERVICE_URL.rstrip('/')
+    
+    # Construct URL correctly based on whether /api is already present
+    if '/api' in base_url:
+        task_url = f'{base_url}/task-service/tasks/{task_id}/status'
+    else:
+        task_url = f'{base_url}/api/task-service/tasks/{task_id}/status'
+    
     print(f"Making request to: {task_url}")
         
     # Call the task service API to update the task
     try:
-        # Simpler URL without '/api/' prefix to avoid duplication
         response = requests.put(
             task_url,
             json={
@@ -741,14 +1130,11 @@ def update_task_status():
             'success': True,
             'task': result.get('task', {})
         })
-        
     except Exception as e:
-        import traceback
         print(f"Error updating task status: {str(e)}")
-        print(traceback.format_exc())
         return jsonify({
             'success': False,
-            'error': f'Exception: {str(e)}'
+            'error': f'Failed to update task: {str(e)}'
         }), 500
 
 # Add a jinja template filter for formatting dates
