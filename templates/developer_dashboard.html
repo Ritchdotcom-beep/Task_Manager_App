@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Developer Dashboard | TaskMaster</title>
+    <title>Developer Dashboard | AI Task Management</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
@@ -102,7 +102,7 @@
         <div class="container mx-auto flex justify-between items-center">
             <div class="flex items-center space-x-3">
                 <i class="fas fa-code-branch text-2xl text-indigo-400"></i>
-                <h1 class="text-xl font-bold">TaskMaster</h1>
+                <h1 class="text-xl font-bold">AI Task Management</h1>
                 <span class="text-sm bg-indigo-900 px-2 py-1 rounded ml-2">DEV</span>
             </div>
             <div class="flex items-center space-x-4">
@@ -112,7 +112,7 @@
                     </div>
                     <span>{{ employee.name }}</span>
                 </div>
-                <a href="/logout" class="bg-indigo-700 hover:bg-indigo-800 px-4 py-2 rounded-md transition-colors">
+                <a href="/logout" class="bg-indigo-700 hover:bg-red-800 px-4 py-2 rounded-md transition-colors">
                     <i class="fas fa-sign-out-alt mr-2"></i>Logout
                 </a>
             </div>
@@ -132,7 +132,7 @@
                 </div>
                 <h2 class="font-bold text-lg">{{ employee.name }}</h2>
                 <p class="text-indigo-400 text-sm">{{ employee.role }}</p>
-                <p class="text-gray-400 text-xs mt-1">Member since {{ format_date(employee.join_date, '%b %Y') }}</p>
+                <p class="text-gray-400 text-xs mt-1">Member since {{ format_date(employee.created_at, '%b %Y') }}</p>
             </div>
             
             <ul class="space-y-2">
@@ -308,22 +308,6 @@
                             <p class="text-gray-400 text-sm">No skills added yet</p>
                         {% endif %}
                     </div>
-                    
-                    <div class="mt-6">
-                        <h4 class="font-medium mb-2 text-sm">Skill Recommendations</h4>
-                        <div class="space-y-2">
-                            {% for skill in ['Python', 'Docker', 'Kubernetes', 'AWS', 'React'] %}
-                            {% if skill not in employee.skills %}
-                            <div class="flex justify-between items-center p-2 hover:bg-gray-800 rounded cursor-pointer">
-                                <span>{{ skill }}</span>
-                                <button onclick="addSkill('{{ skill }}')" class="text-xs bg-indigo-900 hover:bg-indigo-800 px-2 py-1 rounded">
-                                    Add
-                                </button>
-                            </div>
-                            {% endif %}
-                            {% endfor %}
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -361,7 +345,7 @@
                     </span>
                     <span>
                         <i class="fas fa-calendar-alt mr-1"></i>
-                        Assigned: {{ format_date(task.assignment_date) }}
+                        Assigned: {{ format_date(task.assigned_at) }}
                     </span>
                 </div>
                 
@@ -384,6 +368,7 @@
                                 class="bg-yellow-700 hover:bg-yellow-600 text-white px-3 py-1 rounded text-xs transition-colors">
                             Start Task
                         </button>
+                        
                         <a href="/task/{{ task.task_id }}" 
                            class="text-indigo-400 hover:text-indigo-300 text-xs border border-indigo-400 px-2 py-1 rounded">
                             Details
@@ -403,97 +388,150 @@
 </div>
                 
                 <!-- In Progress Tasks -->
-                <div class="dark-card p-6">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-bold">In Progress</h3>
-                        <span class="bg-yellow-900 text-yellow-200 px-2.5 py-0.5 rounded-full text-xs">
-                            {{ in_progress_tasks|length }} active
+                <!-- In Progress Tasks -->
+<div class="dark-card p-6">
+    <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold">In Progress</h3>
+        <span class="bg-yellow-900 text-yellow-200 px-2.5 py-0.5 rounded-full text-xs">
+            {{ in_progress_tasks|length }} active
+        </span>
+    </div>
+    
+    <div class="space-y-3">
+        {% if in_progress_tasks %}
+            {% for task in in_progress_tasks %}
+            <div class="task-card p-4 rounded-lg border border-gray-700">
+                <!-- Task Header Row -->
+                <div class="flex justify-between items-start mb-1">
+                    <div>
+                        <span class="text-xs text-gray-400 font-mono">#{{ task.task_id }}</span>
+                        <h4 class="font-medium">{{ task.title }}</h4>
+                    </div>
+                    <span class="status-badge status-{{ task.status }}">
+                        {{ task.status|replace('_', ' ')|title }}
+                    </span>
+                </div>
+                
+                <!-- Project Type and Metadata -->
+                <div class="flex items-center text-sm text-gray-400 mb-2">
+                    <span class="bg-gray-700 px-2 py-0.5 rounded mr-2">
+                        {{ task.project_type|replace('_', ' ')|title }}
+                    </span>
+                    <span>
+                        <i class="fas fa-calendar-alt mr-1"></i>
+                        Started: {{ format_date(task.start_date) }}
+                    </span>
+                </div>
+                
+                <!-- Task Description -->
+                <p class="text-sm text-gray-400 mb-3 line-clamp-2">{{ task.description }}</p>
+                
+                <!-- Footer with Actions -->
+                <div class="flex justify-between items-center text-sm">
+                    <div>
+                        <span class="text-gray-400">Due:</span>
+                        <span class="ml-1 {{ 'text-red-400' if task.is_overdue else '' }}">
+                            {{ format_date(task.due_date) }}
+                            {% if task.is_overdue %}
+                            <span class="text-xs ml-1">(overdue)</span>
+                            {% endif %}
                         </span>
                     </div>
-                    
-                    <div class="space-y-3">
-                        {% if in_progress_tasks %}
-                            {% for task in in_progress_tasks %}
-                            <div class="task-card p-4 rounded-lg border border-gray-700">
-                                <div class="flex justify-between items-start mb-2">
-                                    <h4 class="font-medium">{{ task.title }}</h4>
-                                    <span class="status-badge status-{{ task.status }}">
-                                        {{ task.status|replace('_', ' ')|title }}
-                                    </span>
-                                </div>
-                                <p class="text-sm text-gray-400 mb-3 line-clamp-2">{{ task.description }}</p>
-                                <div class="flex justify-between items-center text-sm">
-                                    <div>
-                                        <span class="text-gray-400">Started:</span>
-                                        <span class="ml-1">{{ format_date(task.start_date) }}</span>
-                                    </div>
-                                    <div class="space-x-2">
-                                        <button onclick="submitForApproval('{{ task.task_id }}')" 
-                                                class="bg-purple-700 hover:bg-purple-600 text-white px-3 py-1 rounded text-xs transition-colors">
-                                            Submit
-                                        </button>
-                                        <a href="/task/{{ task.task_id }}" class="text-indigo-400 hover:text-indigo-300 text-xs">
-                                            Details
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        {% else %}
-                            <div class="text-center py-8">
-                                <i class="fas fa-hourglass-half text-gray-500 text-4xl mb-3"></i>
-                                <p class="text-gray-400">No active tasks</p>
-                                <p class="text-xs text-gray-500 mt-1">Start working on assigned tasks</p>
-                            </div>
-                        {% endif %}
+                    <div class="space-x-2">
+                        <button onclick="submitForApproval('{{ task.task_id }}')" 
+                                class="bg-purple-700 hover:bg-purple-600 text-white px-3 py-1 rounded text-xs transition-colors">
+                            Submit
+                        </button>
+                        
+                        <a href="/task/{{ task.task_id }}" 
+                           class="text-indigo-400 hover:text-indigo-300 text-xs border border-indigo-400 px-2 py-1 rounded">
+                            Details
+                        </a>
                     </div>
                 </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-center py-8">
+                <i class="fas fa-hourglass-half text-gray-500 text-4xl mb-3"></i>
+                <p class="text-gray-400">No active tasks</p>
+                <p class="text-xs text-gray-500 mt-1">Start working on assigned tasks</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
             </div>
             
             <!-- Second Row of Task Status Sections -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                 <!-- Pending Approval Tasks -->
-                <div class="dark-card p-6">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-bold">Pending Approval</h3>
-                        <span class="bg-purple-900 text-purple-200 px-2.5 py-0.5 rounded-full text-xs">
-                            {{ pending_approval_tasks|length }} submitted
+                <!-- Pending Approval Tasks -->
+<div class="dark-card p-6">
+    <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold">Pending Approval</h3>
+        <span class="bg-purple-900 text-purple-200 px-2.5 py-0.5 rounded-full text-xs">
+            {{ pending_approval_tasks|length }} submitted
+        </span>
+    </div>
+    
+    <div class="space-y-3">
+        {% if pending_approval_tasks %}
+            {% for task in pending_approval_tasks %}
+            <div class="task-card p-4 rounded-lg border border-gray-700">
+                <!-- Task Header Row -->
+                <div class="flex justify-between items-start mb-1">
+                    <div>
+                        <span class="text-xs text-gray-400 font-mono">#{{ task.task_id }}</span>
+                        <h4 class="font-medium">{{ task.title }}</h4>
+                    </div>
+                    <span class="status-badge status-{{ task.status }}">
+                        {{ task.status|replace('_', ' ')|title }}
+                    </span>
+                </div>
+                
+                <!-- Project Type and Metadata -->
+                <div class="flex items-center text-sm text-gray-400 mb-2">
+                    <span class="bg-gray-700 px-2 py-0.5 rounded mr-2">
+                        {{ task.project_type|replace('_', ' ')|title }}
+                    </span>
+                    <span>
+                        <i class="fas fa-calendar-alt mr-1"></i>
+                        Submitted: {{ format_date(task.submitted_at) }}
+                    </span>
+                </div>
+                
+                <!-- Task Description -->
+                <p class="text-sm text-gray-400 mb-3 line-clamp-2">{{ task.description }}</p>
+                
+                <!-- Footer with Actions -->
+                <div class="flex justify-between items-center text-sm">
+                    <div>
+                        <span class="text-gray-400">Due:</span>
+                        <span class="ml-1 {{ 'text-red-400' if task.is_overdue else '' }}">
+                            {{ format_date(task.due_date) }}
+                            {% if task.is_overdue %}
+                            <span class="text-xs ml-1">(overdue)</span>
+                            {% endif %}
                         </span>
                     </div>
-                    
-                    <div class="space-y-3">
-                        {% if pending_approval_tasks %}
-                            {% for task in pending_approval_tasks %}
-                            <div class="task-card p-4 rounded-lg border border-gray-700">
-                                <div class="flex justify-between items-start mb-2">
-                                    <h4 class="font-medium">{{ task.title }}</h4>
-                                    <span class="status-badge status-{{ task.status }}">
-                                        {{ task.status|replace('_', ' ')|title }}
-                                    </span>
-                                </div>
-                                <p class="text-sm text-gray-400 mb-3 line-clamp-2">{{ task.description }}</p>
-                                <div class="flex justify-between items-center text-sm">
-                                    <div>
-                                        <span class="text-gray-400">Submitted:</span>
-                                        <span class="ml-1">{{ format_date(task.submission_date) }}</span>
-                                    </div>
-                                    <div>
-                                        <a href="/task/{{ task_id }}" class="text-indigo-400 hover:text-indigo-300 text-xs">
-                                            View Details
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        {% else %}
-                            <div class="text-center py-8">
-                                <i class="fas fa-clipboard-check text-gray-500 text-4xl mb-3"></i>
-                                <p class="text-gray-400">No pending approvals</p>
-                                <p class="text-xs text-gray-500 mt-1">Submit tasks for review</p>
-                            </div>
-                        {% endif %}
+                    <div class="space-x-2">
+                        <a href="/task/{{ task.task_id }}" 
+                           class="text-indigo-400 hover:text-indigo-300 text-xs border border-indigo-400 px-2 py-1 rounded">
+                            Details
+                        </a>
                     </div>
                 </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-center py-8">
+                <i class="fas fa-clipboard-check text-gray-500 text-4xl mb-3"></i>
+                <p class="text-gray-400">No pending approvals</p>
+                <p class="text-xs text-gray-500 mt-1">Submit tasks for review</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
                 
                 <!-- Completed Tasks Preview -->
                 <div class="dark-card p-6">
@@ -560,7 +598,7 @@
             <div class="flex flex-col md:flex-row justify-between items-center">
                 <div class="flex items-center space-x-2 mb-4 md:mb-0">
                     <i class="fas fa-code-branch text-indigo-400"></i>
-                    <span class="font-medium">TaskMaster v2.1</span>
+                    <span class="font-medium">AI Task Management v2.1</span>
                 </div>
                 <div class="flex space-x-6">
                     <a href="#" class="hover:text-indigo-400 transition-colors">Privacy</a>
@@ -569,7 +607,7 @@
                 </div>
             </div>
             <div class="mt-4 text-center md:text-left text-xs text-gray-500">
-                &copy; 2025 TaskMaster Technologies. All rights reserved.
+                &copy; 2025 AI Task Management Technologies. All rights reserved.
             </div>
         </div>
     </footer>

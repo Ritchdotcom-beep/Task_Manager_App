@@ -43,7 +43,9 @@ class Task(db.Model):
     assigned_to = db.Column(db.String(50), nullable=True)  # employee ID
     assigned_at = db.Column(db.DateTime, nullable=True)
     status = db.Column(db.String(20), default='assigned')  # assigned, in_progress, pending_approval, completed, rejected
-    
+    #start_date = db.Column(db.DateTime, nullable=True)
+    #due_date = db.Column(db.DateTime, nullable=True)
+
     # Submission and approval details
     submitted_at = db.Column(db.DateTime, nullable=True)
     approved_by = db.Column(db.String(50), nullable=True)  # manager ID
