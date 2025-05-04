@@ -43,8 +43,8 @@ class Task(db.Model):
     assigned_to = db.Column(db.String(50), nullable=True)  # employee ID
     assigned_at = db.Column(db.DateTime, nullable=True)
     status = db.Column(db.String(20), default='assigned')  # assigned, in_progress, pending_approval, completed, rejected
-    #start_date = db.Column(db.DateTime, nullable=True)
-    #due_date = db.Column(db.DateTime, nullable=True)
+    start_date = db.Column(db.DateTime, nullable=True)
+    due_date = db.Column(db.DateTime, nullable=True)
 
     # Submission and approval details
     submitted_at = db.Column(db.DateTime, nullable=True)
@@ -614,6 +614,43 @@ def get_project_types():
         'project_types': list(PROJECT_TYPES.keys()),
         'project_type_details': PROJECT_TYPES
     })
+
+@app.route('/api/task-service/tasks/<task_id>/review', methods=['PUT'])
+def review_task(task_id):
+    """Move a submitted task to pending_approval status for manager review"""
+    try:
+        data = request.json
+        
+        task = Task.query.get(task_id)
+        if not task:
+            return jsonify({
+                'success': False,
+                'error': 'Task not found'
+            }), 404
+            
+        # Check if task is submitted
+        if task.status != 'submitted':
+            return jsonify({
+                'success': False,
+                'error': f'Cannot review task with status: {task.status}. Task must be submitted.'
+            }), 400
+            
+        # Update task status to pending_approval
+        task.status = 'pending_approval'
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Task moved to pending approval',
+            'task': task.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error moving task to pending approval: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/task-service/skills-for-project', methods=['GET'])
 def get_skills_for_project():

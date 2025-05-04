@@ -1137,6 +1137,44 @@ def update_task_status():
             'error': f'Failed to update task: {str(e)}'
         }), 500
 
+
+# Modified get_all_tasks function to ensure Task is defined
+@app.route('/api/task-service/tasks', methods=['GET'])
+def get_all_tasks():
+    """Get all tasks or filter by employee, status, etc."""
+    try:
+        # Get query parameters for filtering
+        emp_id = request.args.get('emp_id')
+        status = request.args.get('status')
+        project_type = request.args.get('project_type')
+        
+        # Start with base query - make sure Task is defined in this scope
+        query = Task.query
+        
+        # Apply filters if provided
+        if emp_id:
+            query = query.filter_by(assigned_to=emp_id)
+        if status:
+            query = query.filter_by(status=status)
+        if project_type:
+            query = query.filter_by(project_type=project_type)
+            
+        # Execute query and convert to dict
+        tasks = query.all()
+        task_list = [task.to_dict() for task in tasks]
+        
+        return jsonify({
+            'success': True,
+            'tasks': task_list,
+            'count': len(task_list)
+        })
+    except Exception as e:
+        print(f"Error getting tasks: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 # Add a jinja template filter for formatting dates
 @app.template_filter('datetime')
 def format_datetime(value, format='%B %d, %Y %I:%M %p'):
