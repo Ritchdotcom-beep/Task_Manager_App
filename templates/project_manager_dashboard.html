@@ -678,61 +678,66 @@
     });
 
     function loadSubmittedTasks() {
-        // Show loading state
-        document.getElementById('submittedTasksTable').innerHTML = `
-            <tr>
-                <td colspan="5" class="text-center py-4 text-gray-400">
-                    <i class="fas fa-spinner fa-spin mr-2"></i> Loading submitted tasks...
-                </td>
-            </tr>
-        `;
-        
-        fetch('/api/task-service/tasks?status=submitted')
-            .then(response => response.json())
-            .then(data => {
-                const tableBody = document.getElementById('submittedTasksTable');
-                tableBody.innerHTML = '';
-                
-                if (data.success && data.tasks && data.tasks.length > 0) {
-                    data.tasks.forEach(task => {
-                        const row = document.createElement('tr');
-                        row.className = 'border-b border-gray-700 hover:bg-gray-800';
-                        row.innerHTML = `
-                            <td class="py-3">${task.task_id}</td>
-                            <td class="py-3">${task.project_type.replace(/_/g, ' ').toUpperCase()}</td>
-                            <td class="py-3">${task.submitted_by_name || 'Unknown'} (${task.submitted_by_id || 'N/A'})</td>
-                            <td class="py-3">${task.submission_date || 'N/A'}</td>
-                            <td class="py-3">
-                                <button onclick="showApprovalModal('${task.task_id}')" 
-                                        class="bg-indigo-700 hover:bg-indigo-800 text-white px-3 py-1 rounded text-sm">
-                                    <i class="fas fa-eye mr-1"></i> Review
-                                </button>
-                            </td>
-                        `;
-                        tableBody.appendChild(row);
-                    });
-                } else {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="5" class="text-center py-4 text-gray-400">
-                                No tasks submitted for approval
-                            </td>
-                        </tr>
+    // Show loading state
+    document.getElementById('submittedTasksTable').innerHTML = `
+        <tr>
+            <td colspan="5" class="text-center py-4 text-gray-400">
+                <i class="fas fa-spinner fa-spin mr-2"></i> Loading submitted tasks...
+            </td>
+        </tr>
+    `;
+    
+    // Fetch pending review tasks from the correct endpoint
+    fetch('/pending_review_tasks')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const tableBody = document.getElementById('submittedTasksTable');
+            tableBody.innerHTML = '';
+            
+            if (data.success && data.tasks && data.tasks.length > 0) {
+                data.tasks.forEach(task => {
+                    const row = document.createElement('tr');
+                    row.className = 'border-b border-gray-700 hover:bg-gray-800';
+                    row.innerHTML = `
+                        <td class="py-3">${task.task_id}</td>
+                        <td class="py-3">${task.project_type ? task.project_type.replace(/_/g, ' ').toUpperCase() : 'N/A'}</td>
+                        <td class="py-3">${task.assigned_to || 'Unknown'} (${task.assigned_to || 'N/A'})</td>
+                        <td class="py-3">${task.assigned_at || 'N/A'}</td>
+                        <td class="py-3">
+                            <button onclick="showApprovalModal('${task.task_id}')" 
+                                    class="bg-indigo-700 hover:bg-indigo-800 text-white px-3 py-1 rounded text-sm">
+                                <i class="fas fa-eye mr-1"></i> Review
+                            </button>
+                        </td>
                     `;
-                }
-            })
-            .catch(error => {
-                console.error('Error loading submitted tasks:', error);
-                document.getElementById('submittedTasksTable').innerHTML = `
+                    tableBody.appendChild(row);
+                });
+            } else {
+                tableBody.innerHTML = `
                     <tr>
-                        <td colspan="5" class="text-center py-4 text-red-400">
-                            <i class="fas fa-exclamation-circle mr-2"></i> Error loading submitted tasks
+                        <td colspan="5" class="text-center py-4 text-gray-400">
+                            No tasks submitted for approval
                         </td>
                     </tr>
                 `;
-            });
-    }
-
+            }
+        })
+        .catch(error => {
+            console.error('Error loading submitted tasks:', error);
+            document.getElementById('submittedTasksTable').innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center py-4 text-red-400">
+                        <i class="fas fa-exclamation-circle mr-2"></i> Error loading submitted tasks: ${error.message}
+                    </td>
+                </tr>
+            `;
+        });
+}
     function showApprovalModal(taskId) {
         fetch(`/api/task-service/tasks/${taskId}`)
             .then(response => response.json())

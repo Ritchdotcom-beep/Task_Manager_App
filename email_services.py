@@ -19,7 +19,7 @@ def send_credentials_email(email, emp_id, temp_password):
         body = f"""
         Hello,
         
-        Your account has been created in our employee management system.
+        Your account has been created in our AI Task Management.
         
         Employee ID: {emp_id}
         Temporary Password: {temp_password}

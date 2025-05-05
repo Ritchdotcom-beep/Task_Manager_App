@@ -75,6 +75,29 @@ class Task(db.Model):
             'success_rating': self.success_rating
         }
 
+class TaskHistory(db.Model):
+    __tablename__ = 'task_history'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.String(50), db.ForeignKey('tasks.task_id'), nullable=False)
+    action = db.Column(db.String(50), nullable=False)  # task_created, task_assigned, task_started, task_submitted, task_approved, task_rejected, etc.
+    performed_by = db.Column(db.String(50), nullable=False)  # employee ID who performed the action
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    details = db.Column(db.Text, nullable=True)  # Additional context about the action
+    
+    # Relationship with Task
+    task = db.relationship('Task', backref=db.backref('history', lazy='dynamic'))
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'task_id': self.task_id,
+            'action': self.action,
+            'performed_by': self.performed_by,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'details': self.details
+        }
+
 @app.cli.command("create_tables")
 def create_tables():
     db.create_all()
@@ -756,7 +779,22 @@ def assign_tasks():
             'error': f'Exception: {str(e)}'
         }), 500
     
-# Add these new endpoints to task_assignment_service.py
+@app.route('/api/task-service/tasks/pending-review', methods=['GET'])
+def get_pending_review_tasks():
+    """Get all tasks that are submitted and waiting for review"""
+    try:
+        # Get tasks with 'submitted' status
+        pending_tasks = Task.query.filter_by(status='submitted').all()
+        
+        # Convert to dictionary format
+        tasks_list = [task.to_dict() for task in pending_tasks]
+        
+        return jsonify({
+            'success': True,
+            'tasks': tasks_list
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/task-service/tasks', methods=['GET'])
 def get_all_tasks():

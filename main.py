@@ -960,6 +960,41 @@ def submit_task_for_review():
             'error': f'Internal error: {str(e)}'
         }), 500
 
+@app.route('/pending_review_tasks', methods=['GET'])
+def get_pending_review_tasks():
+    if 'emp_id' not in session:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    
+    try:
+        # Call task service to get pending review tasks
+        api_url = f'{TASK_SERVICE_URL}/task-service/tasks/pending-review'
+        response = requests.get(
+            api_url,
+            headers=api_headers(),
+            timeout=5
+        )
+        
+        # Handle response
+        response_data = response.json()
+        if response.status_code != 200:
+            return jsonify({
+                'success': False,
+                'error': response_data.get('error', 'Task service error')
+            }), response.status_code
+        
+        return jsonify(response_data)
+    
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False,
+            'error': f'Service unavailable: {str(e)}'
+        }), 503
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Internal error: {str(e)}'
+        }), 500
+
 @app.route('/task_details/<task_id>')
 def task_details(task_id):
     if 'emp_id' not in session:
