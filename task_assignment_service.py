@@ -638,6 +638,41 @@ def get_project_types():
         'project_type_details': PROJECT_TYPES
     })
 
+@app.route('/api/task-service/tasks/<task_id>', methods=['GET'])
+def get_task(task_id):
+    """Get details for a specific task"""
+    try:
+        # Verify API key if needed
+        api_key = request.headers.get('X-API-Key')
+        if not api_key or api_key != 'dev_api_key':  # Replace with your actual API key validation
+            return jsonify({
+                'success': False,
+                'error': 'Invalid or missing API key'
+            }), 401
+            
+        # Find the task using SQLAlchemy 2.0-compatible syntax
+        from sqlalchemy import select
+        task = db.session.execute(select(Task).filter_by(task_id=task_id)).scalar_one_or_none()
+        
+        if not task:
+            app.logger.warning(f"Task not found: {task_id}")
+            return jsonify({
+                'success': False,
+                'error': 'Task not found'
+            }), 404
+            
+        app.logger.info(f"Returning task data for: {task_id}")
+        return jsonify({
+            'success': True,
+            'task': task.to_dict()
+        })
+    except Exception as e:
+        app.logger.error(f"Error retrieving task {task_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/task-service/tasks/<task_id>/review', methods=['PUT'])
 def review_task(task_id):
     """Move a submitted task to pending_approval status for manager review"""
@@ -831,28 +866,9 @@ def get_all_tasks():
             'success': False,
             'error': str(e)
         }), 500
+    
 
-@app.route('/api/task-service/tasks/<task_id>', methods=['GET'])
-def get_task(task_id):
-    """Get details for a single task"""
-    try:
-        task = Task.query.get(task_id)
-        if not task:
-            return jsonify({
-                'success': False,
-                'error': 'Task not found'
-            }), 404
-            
-        return jsonify({
-            'success': True,
-            'task': task.to_dict()
-        })
-    except Exception as e:
-        print(f"Error getting task: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+
 
 @app.route('/api/task-service/tasks/<task_id>/status', methods=['PUT'])
 def update_task_status(task_id):

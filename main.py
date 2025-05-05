@@ -719,7 +719,7 @@ def approve_task():
     try:
         # Call the task service API to approve or reject the task
         response = requests.post(
-            f'{request.host_url.rstrip("/")}/api/task-service/tasks/{task_id}/review',
+            f'{TASK_SERVICE_URL}/task-service/tasks/{task_id}/review',
             headers=api_headers(),
             json={
                 'reviewer_id': session['emp_id'],
@@ -960,6 +960,55 @@ def submit_task_for_review():
             'error': f'Internal error: {str(e)}'
         }), 500
 
+@app.route('/get_task/<task_id>', methods=['GET'])
+def get_task(task_id):
+    """Get details for a specific task"""
+    if 'emp_id' not in session:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    
+    try:
+        # Define API endpoint - FIXED to use port 5002 and correct path
+        api_endpoint = f'http://localhost:5002/api/task-service/tasks/{task_id}'
+        
+        # Log the request
+        app.logger.info(f"Requesting task data from: {api_endpoint}")
+        
+        # Get headers
+        headers = api_headers()
+        
+        # Call the task service API with error handling
+        response = requests.get(api_endpoint, headers=headers)
+        
+        # Log response status
+        app.logger.info(f"Task service response status: {response.status_code}")
+        
+        if response.status_code != 200:
+            error_message = f"Failed to get task: Status {response.status_code}"
+            try:
+                error_detail = response.json()
+                error_message += f" - {error_detail.get('error', 'Unknown error')}"
+            except:
+                error_message += f" - {response.text[:100]}"
+            
+            app.logger.error(error_message)
+            return jsonify({'success': False, 'error': error_message}), 500
+        
+        # Parse response
+        try:
+            result = response.json()
+            return jsonify({'success': True, 'task': result.get('task', {})})
+        except Exception as json_error:
+            app.logger.error(f"Error parsing JSON response: {str(json_error)}")
+            return jsonify({'success': False, 'error': f'Invalid response format: {str(json_error)}'}), 500
+    
+    except requests.exceptions.ConnectionError as conn_error:
+        error_msg = f"Connection error to task service: {str(conn_error)}"
+        app.logger.error(error_msg)
+        return jsonify({'success': False, 'error': error_msg}), 500
+    except Exception as e:
+        app.logger.error(f"Unexpected error in get_task: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/pending_review_tasks', methods=['GET'])
 def get_pending_review_tasks():
     if 'emp_id' not in session:
@@ -1004,7 +1053,7 @@ def task_details(task_id):
     try:
         # Get task details
         task_response = requests.get(
-            f'{request.host_url.rstrip("/")}/api/task-service/tasks/{task_id}',
+            f'{TASK_SERVICE_URL}/task-service/tasks/{task_id}',
             headers=api_headers()
         )
         
@@ -1016,7 +1065,7 @@ def task_details(task_id):
         
         # Get assigned employees for this task
         assignees_response = requests.get(
-            f'{request.host_url.rstrip("/")}/api/task-service/tasks/{task_id}/assignees',
+            f'{TASK_SERVICE_URL}/task-service/tasks/{task_id}/assignees',
             headers=api_headers()
         )
         
@@ -1031,7 +1080,7 @@ def task_details(task_id):
         
         # Get task history/activity log
         history_response = requests.get(
-            f'{request.host_url.rstrip("/")}/api/task-service/tasks/{task_id}/history',
+            f'{TASK_SERVICE_URL}/task-service/tasks/{task_id}/history',
             headers=api_headers()
         )
         

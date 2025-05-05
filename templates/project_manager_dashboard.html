@@ -738,110 +738,207 @@
             `;
         });
 }
-    function showApprovalModal(taskId) {
-        fetch(`/api/task-service/tasks/${taskId}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.task) {
-                    const task = data.task;
-                    
-                    // Populate modal with task details
-                    document.getElementById('approvalTaskId').textContent = task.task_id;
-                    document.getElementById('approvalProjectType').textContent = 
-                        task.project_type.replace(/_/g, ' ').toUpperCase();
-                    document.getElementById('approvalSubmittedBy').textContent = 
-                        `${task.submitted_by_name || 'Unknown'} (${task.submitted_by_id || 'N/A'})`;
-                    document.getElementById('approvalDescription').textContent = 
-                        task.description || 'No description provided';
-                    
-                    // Clear previous feedback
-                    document.getElementById('approvalFeedback').value = '';
-                    
-                    // Store current task ID in modal for later use
-                    document.getElementById('approvalModal').dataset.taskId = taskId;
-                    
-                    // Show the modal
-                    document.getElementById('approvalModal').classList.remove('hidden');
-                } else {
-                    alert('Failed to load task details: ' + (data.error || 'Unknown error'));
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while loading task details');
-            });
-    }
-
-    function hideApprovalModal() {
-        document.getElementById('approvalModal').classList.add('hidden');
-    }
-
-    function approveTask() {
-        const taskId = document.getElementById('approvalModal').dataset.taskId;
-        const feedback = document.getElementById('approvalFeedback').value;
-        
-        fetch('/api/approve_task', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                task_id: taskId,
-                action: 'approve',
-                feedback: feedback
-            })
+function showApprovalModal(taskId) {
+    // First, get the task details
+    fetch(`/get_task/${taskId}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
         })
-        .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                alert('Task approved successfully!');
-                hideApprovalModal();
-                loadSubmittedTasks(); // Refresh the list
+            if (data.success && data.task) {
+                const task = data.task;
+                
+                // Populate modal with task details
+                document.getElementById('approvalTaskId').textContent = task.task_id;
+                document.getElementById('approvalProjectType').textContent = 
+                    task.project_type ? task.project_type.replace(/_/g, ' ').toUpperCase() : 'N/A';
+                document.getElementById('approvalSubmittedBy').textContent = 
+                    `${task.submitted_by_name || 'Unknown'} (${task.submitted_by_id || 'N/A'})`;
+                
+                document.getElementById('approvalDescription').textContent = 
+                    task.description || 'No description provided';
+                
+                // Clear previous feedback
+                document.getElementById('approvalFeedback').value = '';
+                
+                // Store current task ID in modal for later use
+                document.getElementById('approvalModal').dataset.taskId = taskId;
+                
+                // Show the modal
+                document.getElementById('approvalModal').classList.remove('hidden');
             } else {
-                alert('Failed to approve task: ' + (data.error || 'Unknown error'));
+                alert('Failed to load task details: ' + (data.error || 'Unknown error'));
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('An error occurred while approving the task');
+            alert('An error occurred while loading task details: ' + error.message);
         });
-    }
+}
 
-    function rejectTask() {
-        const taskId = document.getElementById('approvalModal').dataset.taskId;
-        const feedback = document.getElementById('approvalFeedback').value;
-        
-        if (!feedback) {
-            alert('Please provide feedback when rejecting a task');
-            return;
+
+function hideApprovalModal() {
+    document.getElementById('approvalModal').classList.add('hidden');
+}
+
+function approveTask() {
+    const taskId = document.getElementById('approvalModal').dataset.taskId;
+    const feedback = document.getElementById('approvalFeedback').value;
+    
+    // Updated to match the backend route in main.py
+    fetch('/approve_task', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            task_id: taskId,
+            action: 'approve',
+            feedback: feedback
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Task approved successfully!');
+            hideApprovalModal();
+            loadSubmittedTasks(); // Refresh the list
+        } else {
+            alert('Failed to approve task: ' + (data.error || 'Unknown error'));
         }
-        
-        fetch('/api/approve_task', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                task_id: taskId,
-                action: 'reject',
-                feedback: feedback
-            })
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while approving the task');
+    });
+}
+
+function rejectTask() {
+    const taskId = document.getElementById('approvalModal').dataset.taskId;
+    const feedback = document.getElementById('approvalFeedback').value;
+    
+    if (!feedback) {
+        alert('Please provide feedback when rejecting a task');
+        return;
+    }
+    
+    // Updated to match the backend route in main.py
+    fetch('/approve_task', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            task_id: taskId,
+            action: 'reject',
+            feedback: feedback
         })
-        .then(response => response.json())
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Task has been sent back for changes');
+            hideApprovalModal();
+            loadSubmittedTasks(); // Refresh the list
+        } else {
+            alert('Failed to reject task: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while rejecting the task');
+    });
+}
+
+// Function to view task history
+function viewTaskHistory(taskId) {
+    fetch(`/get_task_history/${taskId}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
-            if (data.success) {
-                alert('Task has been sent back for changes');
-                hideApprovalModal();
-                loadSubmittedTasks(); // Refresh the list
+            if (data.success && data.history) {
+                // Display history in a modal or panel
+                showHistoryModal(data.history, taskId);
             } else {
-                alert('Failed to reject task: ' + (data.error || 'Unknown error'));
+                alert('Failed to load task history: ' + (data.error || 'Unknown error'));
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('An error occurred while rejecting the task');
+            alert('An error occurred while loading task history: ' + error.message);
+        });
+}
+
+// Function to show history modal
+function showHistoryModal(history, taskId) {
+    // Create or clear history container
+    const historyContainer = document.getElementById('taskHistoryContainer') || 
+                            document.createElement('div');
+    historyContainer.id = 'taskHistoryContainer';
+    historyContainer.innerHTML = '';
+    
+    // Add title
+    const title = document.createElement('h3');
+    title.textContent = `History for Task #${taskId}`;
+    historyContainer.appendChild(title);
+    
+    // Create history list
+    const historyList = document.createElement('ul');
+    historyList.className = 'task-history-list';
+    
+    if (history.length === 0) {
+        const noHistory = document.createElement('li');
+        noHistory.textContent = 'No history records found for this task.';
+        historyList.appendChild(noHistory);
+    } else {
+        // Sort history by timestamp (newest first)
+        history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        
+        history.forEach(record => {
+            const item = document.createElement('li');
+            const date = new Date(record.timestamp).toLocaleString();
+            
+            item.innerHTML = `
+                <strong>${date}</strong>: ${record.action.replace('_', ' ')} 
+                by ${record.performed_by_name || record.performed_by}
+                <p>${record.details}</p>
+            `;
+            
+            historyList.appendChild(item);
         });
     }
+
+
+    historyContainer.appendChild(historyList);
+    
+    // Add close button
+    const closeButton = document.createElement('button');
+    closeButton.textContent = 'Close';
+    closeButton.onclick = hideHistoryModal;
+    historyContainer.appendChild(closeButton);
+    
+    // Add to page and display
+    if (!document.getElementById('taskHistoryContainer')) {
+        document.body.appendChild(historyContainer);
+    }
+    
+    historyContainer.classList.remove('hidden');
+    historyContainer.style.display = 'block';
+}
+
+function hideHistoryModal() {
+    const historyContainer = document.getElementById('taskHistoryContainer');
+    if (historyContainer) {
+        historyContainer.style.display = 'none';
+    }
+}
     </script>
 
     <footer class="bg-gray-900 text-gray-300 p-4 mt-8">
