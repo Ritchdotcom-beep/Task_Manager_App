@@ -705,7 +705,7 @@ def task_management():
 def approve_task():
     if 'emp_id' not in session or session['role'] != 'project manager':
         return jsonify({'success': False, 'error': 'Unauthorized'}), 403
-    
+        
     task_id = request.json.get('task_id')
     action = request.json.get('action')  # 'approve' or 'reject'
     feedback = request.json.get('feedback', '')
@@ -717,25 +717,56 @@ def approve_task():
         return jsonify({'success': False, 'error': 'Invalid action'}), 400
     
     try:
-        # Call the task service API to approve or reject the task
-        response = requests.post(
-            f'{TASK_SERVICE_URL}/task-service/tasks/{task_id}/review',
-            headers=api_headers(),
-            json={
-                'reviewer_id': session['emp_id'],
-                'action': action,
-                'feedback': feedback,
-                'status': 'completed' if action == 'approve' else 'in_progress'
-            }
+        # First, ensure the task is in pending_approval status by calling review endpoint
+        api_url_review = f"{TASK_SERVICE_URL}/task-service/tasks/{task_id}/review"
+        print(f"Moving task to pending_approval: {api_url_review}")
+        
+        review_response = requests.put(
+            api_url_review,
+            headers=api_headers()
         )
+        
+        print(f"Review response: {review_response.status_code} - {review_response.text}")
+        
+        # If task is already in pending_approval, this might fail but we can continue
+        # Only fail if it's not a 'status' related error
+        if review_response.status_code != 200:
+            result = review_response.json()
+            if 'error' in result and 'status' not in result['error']:
+                return jsonify({'success': False, 'error': f'Failed to prepare task for review: {review_response.text}'}), 500
+        
+        # Now proceed with approval or rejection
+        api_url = f"{TASK_SERVICE_URL}/task-service/tasks/{task_id}/approve"
+        print(f"Approving/rejecting task: {api_url}")
+        
+        payload = {
+            'manager_id': session['emp_id'],
+            'approved': action == 'approve',
+            'notes': feedback,
+            'rating': 5 if action == 'approve' else None
+        }
+        
+        print(f"With payload: {payload}")
+        
+        # Call the task service API to approve or reject the task
+        response = requests.put(
+            api_url,
+            headers=api_headers(),
+            json=payload
+        )
+        
+        print(f"Approve response: {response.status_code} - {response.text}")
         
         if response.status_code != 200:
             return jsonify({'success': False, 'error': f'Failed to process task: {response.text}'}), 500
-        
+            
         result = response.json()
         return jsonify({'success': True, 'task': result.get('task', {})})
-    
+        
     except Exception as e:
+        import traceback
+        print(f"Exception in approve_task: {str(e)}")
+        print(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

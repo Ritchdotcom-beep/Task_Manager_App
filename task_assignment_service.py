@@ -673,11 +673,12 @@ def get_task(task_id):
             'error': str(e)
         }), 500
 
+# Add this endpoint with '/api' prefix
 @app.route('/api/task-service/tasks/<task_id>/review', methods=['PUT'])
-def review_task(task_id):
+def review_task_api(task_id):
     """Move a submitted task to pending_approval status for manager review"""
     try:
-        data = request.json
+        print(f"Received review request for task {task_id}")
         
         task = Task.query.get(task_id)
         if not task:
@@ -709,6 +710,12 @@ def review_task(task_id):
             'success': False,
             'error': str(e)
         }), 500
+
+# Keep the original for backward compatibility
+@app.route('/task-service/tasks/<task_id>/review', methods=['PUT'])
+def review_task(task_id):
+    """Redirect to main review function"""
+    return review_task_api(task_id)
 
 @app.route('/api/task-service/skills-for-project', methods=['GET'])
 def get_skills_for_project():
