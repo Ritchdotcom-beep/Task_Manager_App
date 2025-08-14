@@ -37,6 +37,16 @@ def assign_tasks(tasks):
         return response.json()
     return None
 
+def tasks_recommendation(task):
+    response = requests.post(  
+        f'{TASK_SERVICE_URL}/task-service/tasks_recommendation',
+        json={'tasks': task}, 
+        headers=api_headers()
+    )
+    if response.status_code == 200:
+        return response.json()
+    return None
+
 def get_project_types():
     """Get all project types from task service with fallback to local definition"""
     try:
@@ -1144,6 +1154,48 @@ def task_details(task_id):
 
 @app.route('/api/get_assignment_recommendation', methods=['POST'])
 def get_assignment_recommendation():
+    """Get assignment recommendation for a task without saving it"""
+    if 'emp_id' not in session or session.get('role') != 'project manager':
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+        
+    task_data = request.json
+    tasks = [task_data]
+    
+    # Get skills for project type if not provided
+    if 'skills' not in task_data or not task_data['skills']:
+        task_data['skills'] = get_skills_for_project_type(task_data['project_type'])
+    
+    # Get recommendation without persistence
+    try:
+        result = tasks_recommendation(tasks)  # This will call the recommendation endpoint
+        
+        if not result:
+            return jsonify({
+                'success': False, 
+                'error': 'Failed to get recommendation - result is None'
+            }), 500
+        
+        if 'success' not in result or not result['success']:
+            return jsonify({
+                'success': False, 
+                'error': result.get('error', 'Failed to get recommendation')
+            }), 500
+            
+        return jsonify({
+            'success': True,
+            'recommendations': result.get('assignments', {}).get(task_data['task_id'])
+        })
+    except Exception as e:
+        import traceback
+        print(f"Error in get_assignment_recommendation: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': f'Exception: {str(e)}'
+        }), 500
+
+@app.route('/api/get_assignment', methods=['POST'])
+def get_assignment():
     """Get assignment recommendation for a task without saving it"""
     if 'emp_id' not in session or session.get('role') != 'project manager':
         return jsonify({'success': False, 'error': 'Unauthorized'}), 403

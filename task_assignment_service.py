@@ -13,6 +13,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from collections import defaultdict
+from email_services import send_task_assignment
 
 # Load environment variables
 load_dotenv()
@@ -40,6 +41,7 @@ class Task(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Assignment details
+    email_assigned_to =db.Column(db.String(50))
     assigned_to = db.Column(db.String(50), nullable=True)  # employee ID
     assigned_at = db.Column(db.DateTime, nullable=True)
     status = db.Column(db.String(20), default='assigned')  # assigned, in_progress, pending_approval, completed, rejected
@@ -65,6 +67,7 @@ class Task(db.Model):
             'priority': self.priority,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'assigned_to': self.assigned_to,
+            'email_assigned_to': self.email_assigned_to,
             'assigned_at': self.assigned_at.isoformat() if self.assigned_at else None,
             'status': self.status,
             'submitted_at': self.submitted_at.isoformat() if self.submitted_at else None,
@@ -158,6 +161,18 @@ def get_all_employees():
     except Exception as e:
         print(f"Exception while getting employees: {str(e)}")
         return []
+
+def get_employee_by_id(emp_id):
+    """Get a specific employee's details from the employee service"""
+    try:
+        response = requests.get(f'{EMPLOYEE_SERVICE_URL}/employees/{emp_id}', headers=api_headers())
+        if response.status_code == 200:
+            return response.json()
+        print(f"Failed to get employee {emp_id}: {response.status_code}, {response.text}")
+        return None
+    except Exception as e:
+        print(f"Exception while getting employee {emp_id}: {str(e)}")
+        return None
 
 # Function to load or train the model
 def load_or_train_model():
@@ -540,83 +555,6 @@ def update_employee_metrics(emp_id):
         print(f"Error updating employee metrics: {str(e)}")
         return False
 
-# API Routes
-@app.route('/api/create_task', methods=['POST'])
-def create_task():
-    """Create a new task, save it to the database, and get assignment recommendations"""
-    task_data = request.json
-    
-    # Validate task data
-    required_fields = ['task_id', 'project_type', 'complexity', 'priority']
-    for field in required_fields:
-        if field not in task_data:
-            return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
-    
-    # Get skills for project type if not provided
-    if 'skills' not in task_data or not task_data['skills']:
-        task_data['skills'] = get_skills_for_project_type(task_data['project_type'])
-    
-    # Create list of tasks (API expects an array)
-    tasks = [task_data]
-    
-    # Get all employees
-    employees = get_all_employees()
-    
-    # Load or train the model
-    model_data = load_or_train_model()
-    
-    # Assign task using ML model
-    assignments = assign_tasks_ml(tasks, employees, model_data)
-    
-    if isinstance(assignments, dict) and "error" in assignments:
-        return jsonify({
-            'success': False,
-            'error': assignments["error"]
-        }), 500
-    
-    # Store the task in the database
-    try:
-        # Get the assigned employee
-        task_id = task_data['task_id']
-        assignment = assignments.get(task_id)
-        
-        # Create new task object
-        new_task = Task(
-            task_id=task_id,
-            project_type=task_data['project_type'],
-            skills=task_data['skills'],
-            complexity=task_data['complexity'],
-            priority=task_data['priority'],
-            assigned_to=assignment.get('emp_id') if assignment and 'emp_id' in assignment else None,
-            assigned_at=datetime.utcnow() if assignment and 'emp_id' in assignment else None,
-            status='assigned' if assignment and 'emp_id' in assignment else 'unassigned'
-        )
-        
-        # Save to database
-        db.session.add(new_task)
-        db.session.commit()
-        
-        # Return response with task and assignments
-        return jsonify({
-            'success': True,
-            'task': task_data,
-            'assignments': assignments,
-            'task_saved': True
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error saving task: {str(e)}")
-        
-        # Still return assignment recommendations but note the DB error
-        return jsonify({
-            'success': True,
-            'task': task_data,
-            'assignments': assignments,
-            'task_saved': False,
-            'db_error': str(e)
-        })
-
 
 
 @app.route('/api/get_project_skills', methods=['GET'])
@@ -728,6 +666,7 @@ def get_skills_for_project():
     skills = get_skills_for_project_type(project_type)
     return jsonify({'skills': skills})
 
+
 @app.route('/api/task-service/assign-tasks', methods=['POST'])
 def assign_tasks():
     """Assign tasks to employees using ML model, and save to database"""
@@ -759,9 +698,10 @@ def assign_tasks():
                 'error': assignments["error"]
             }), 500
         
-        # Save assignments to database
+        # Save assignments to database and send emails
         saved_tasks = []
         failed_tasks = []
+        email_results = []
         
         for task in tasks:
             task_id = task.get('task_id')
@@ -775,12 +715,26 @@ def assign_tasks():
                 continue
             
             try:
+                emp_id = assignment.get('emp_id')
+                
+                # Get employee details including email
+                employee = get_employee_by_id(emp_id)
+                employee_email = None
+                employee_name = "Employee"
+                
+                if employee:
+                    employee_email = employee.get('email')
+                    employee_name = employee.get('name', 'Employee')
+                else:
+                    print(f"Warning: Could not fetch employee details for {emp_id}")
+                
                 # Check if task already exists
                 existing_task = Task.query.get(task_id)
                 
                 if existing_task:
                     # Update existing task
-                    existing_task.assigned_to = assignment.get('emp_id')
+                    existing_task.assigned_to = emp_id
+                    existing_task.email_assigned_to = employee_email
                     existing_task.assigned_at = datetime.utcnow()
                     existing_task.status = 'assigned'
                 else:
@@ -791,27 +745,74 @@ def assign_tasks():
                         skills=task.get('skills', []),
                         complexity=task.get('complexity', 'Medium'),
                         priority=task.get('priority', 'Medium'),
-                        assigned_to=assignment.get('emp_id'),
+                        assigned_to=emp_id,
+                        email_assigned_to=employee_email,
                         assigned_at=datetime.utcnow(),
                         status='assigned'
                     )
                     db.session.add(new_task)
                 
                 saved_tasks.append(task_id)
+                
+                # Send email notification if email is available
+                email_sent = False
+                if employee_email:
+                    try:
+                        email_sent = send_task_assignment(
+                            email=employee_email,
+                            task_id=task_id,
+                            project_type=task.get('project_type'),
+                            complexity=task.get('complexity'),
+                            priority=task.get('priority'),
+                            assigned_to=emp_id,
+                            employee_name=employee_name,
+                            assigned_at = task.get('assigned_at')
+                          
+                        )
+                        
+                        if not email_sent:
+                            print(f"Warning: Email could not be sent to {employee_email} for task {task_id}")
+                            
+                    except Exception as email_error:
+                        print(f"Email sending error for task {task_id}: {str(email_error)}")
+                        email_sent = False
+                else:
+                    print(f"Warning: No email address found for employee {emp_id}")
+                
+                # Record email result
+                email_results.append({
+                    'task_id': task_id,
+                    'emp_id': emp_id,
+                    'employee_name': employee_name,
+                    'email': employee_email,
+                    'email_sent': email_sent,
+                    'reason': 'Email sent successfully' if email_sent else ('No email address' if not employee_email else 'Email sending failed')
+                })
+                
             except Exception as e:
                 db.session.rollback()
                 failed_tasks.append({"task": task, "error": str(e)})
         
         # Commit all successful tasks
         if saved_tasks:
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as commit_error:
+                db.session.rollback()
+                print(f"Database commit error: {str(commit_error)}")
+                return jsonify({
+                    'success': False,
+                    'error': f'Database commit failed: {str(commit_error)}'
+                }), 500
         
         return jsonify({
             'success': True,
             'assignments': assignments,
             'saved_tasks': saved_tasks,
-            'failed_tasks': failed_tasks
+            'failed_tasks': failed_tasks,
+            'email_notifications': email_results
         })
+        
     except Exception as e:
         import traceback
         print(f"Error in assign_tasks: {str(e)}")
@@ -820,6 +821,56 @@ def assign_tasks():
             'success': False,
             'error': f'Exception: {str(e)}'
         }), 500
+
+
+
+@app.route('/api/task-service/tasks_recommendation', methods=['POST'])
+def tasks_recommendation_endpoint():
+    """Get task assignment recommendations WITHOUT saving to database or sending emails"""
+    try:
+        data = request.json
+        
+        if not data or 'tasks' not in data:
+            return jsonify({'success': False, 'error': 'Tasks are required'}), 400
+        
+        tasks = data['tasks']
+        
+        # Process tasks to ensure they have skills
+        for task in tasks:
+            if 'project_type' in task and ('skills' not in task or not task['skills']):
+                task['skills'] = get_skills_for_project_type(task['project_type'])
+        
+        # Get all employees
+        employees = get_all_employees()
+        
+        # Load or train the model
+        model_data = load_or_train_model()
+        
+        # Get recommendations using ML model (but don't save anything)
+        assignments = assign_tasks_ml(tasks, employees, model_data)
+        
+        if isinstance(assignments, dict) and "error" in assignments:
+            return jsonify({
+                'success': False,
+                'error': assignments["error"]
+            }), 500
+        
+        # Return recommendations WITHOUT saving to database or sending emails
+        return jsonify({
+            'success': True,
+            'assignments': assignments
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"Error in tasks_recommendation: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': f'Exception: {str(e)}'
+        }), 500
+
+
     
 @app.route('/api/task-service/tasks/pending-review', methods=['GET'])
 def get_pending_review_tasks():

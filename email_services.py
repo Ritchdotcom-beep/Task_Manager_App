@@ -52,4 +52,54 @@ def send_credentials_email(email, emp_id, temp_password):
             
     except Exception as e:
         print(f"Failed to send email: {str(e)}")
+        return False 
+
+def send_task_assignment(email, task_id, project_type,complexity, priority, assigned_to, assigned_at, employee_name ):
+    try:
+        # Create a multipart message for better email formatting
+        msg = MIMEMultipart()
+        msg['Subject'] = 'Your New Account Credentials'
+        msg['From'] = os.getenv('EMAIL_FROM')
+        msg['To'] = email
+        
+        # Email body with better formatting
+        body = f"""
+        Hello,
+        
+        Your have been assigned a task from AI Task Management with the following details.
+        
+        
+        Task ID={task_id},
+        Project Type={project_type},
+        Complexity={complexity},
+        Priority={priority},
+        Assigned to={assigned_to},
+        Assigned at={assigned_at}
+            
+        This is an automated message, please do not reply.
+        """
+        
+        # Attach the body to the message
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Gmail SMTP settings
+        smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+        smtp_port = int(os.getenv('SMTP_PORT', 587))
+        
+        # For Gmail, you need to use your Gmail address and app password
+        email_user = os.getenv('EMAIL_USER')
+        email_password = os.getenv('EMAIL_PASSWORD')
+        
+        # Connect to SMTP server
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.ehlo()  # Identify to SMTP server
+            server.starttls()  # Secure the connection
+            server.ehlo()  # Re-identify over TLS connection
+            server.login(email_user, email_password)
+            server.send_message(msg)
+            print(f"Email sent successfully to {email}")
+            return True
+            
+    except Exception as e:
+        print(f"Failed to send email: {str(e)}")
         return False
