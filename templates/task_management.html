@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Management - Project Manager Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+        .dark-card {
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+            border: 1px solid #333;
+        }
+        .dark-input {
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+            border-color: #444;
+        }
+        .dark-input:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+        .status-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+        .status-assigned { background-color: #3b82f6; color: white; }
+        .status-in_progress { background-color: #f59e0b; color: black; }
+        .status-submitted { background-color: #8b5cf6; color: white; }
+        .status-completed { background-color: #10b981; color: white; }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="bg-gray-800 text-white p-4">
+        <div class="flex justify-between items-center">
+            <h1 class="text-xl font-bold">Task Management</h1>
+            <a href="{{ url_for('project_manager_dashboard') }}" class="text-blue-400 hover:text-blue-300">
+                <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+            </a>
+        </div>
+    </header>
+
+    <div class="container mx-auto px-4 py-6">
+        <!-- Create Task Section -->
+        <div class="dark-card rounded-lg shadow p-6 mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold">Create New Task</h3>
+                <button onclick="toggleCreateTask()" class="bg-indigo-700 hover:bg-indigo-800 text-white px-4 py-2 rounded">
+                    <i class="fas fa-plus mr-2"></i>New Task
+                </button>
+            </div>
+            
+            <div id="createTaskForm" style="display: none;">
+                <form onsubmit="submitTask(event)">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-gray-300 text-sm font-bold mb-2">Task ID</label>
+                            <input type="text" id="taskId" class="dark-input w-full py-2 px-3 rounded" placeholder="TASK001" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-300 text-sm font-bold mb-2">Project Type</label>
+                            <select id="projectType" class="dark-input w-full py-2 px-3 rounded" required>
+                                <option value="">Select Project Type</option>
+                                {% for project_type in project_types %}
+                                <option value="{{ project_type }}">{{ project_type.replace('_', ' ').title() }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-gray-300 text-sm font-bold mb-2">Complexity</label>
+                            <select id="complexity" class="dark-input w-full py-2 px-3 rounded" required>
+                                <option value="">Select Complexity</option>
+                                <option value="Low">Low</option>
+                                <option value="Medium">Medium</option>
+                                <option value="High">High</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-gray-300 text-sm font-bold mb-2">Priority</label>
+                            <select id="priority" class="dark-input w-full py-2 px-3 rounded" required>
+                                <option value="">Select Priority</option>
+                                <option value="Low">Low</option>
+                                <option value="Medium">Medium</option>
+                                <option value="High">High</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-gray-300 text-sm font-bold mb-2">Title (Optional)</label>
+                        <input type="text" id="title" class="dark-input w-full py-2 px-3 rounded" placeholder="Task title">
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-gray-300 text-sm font-bold mb-2">Description (Optional)</label>
+                        <textarea id="description" class="dark-input w-full py-2 px-3 rounded" rows="3" placeholder="Task description"></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-gray-300 text-sm font-bold mb-2">
+                            Specification Package <span class="text-red-500">*</span>
+                        </label>
+                        <input type="file" id="specFile" name="spec_file" 
+                               class="dark-input w-full py-2 px-3 rounded" 
+                               accept=".zip" required>
+                        <p class="text-sm text-gray-400 mt-1">Upload a .zip file containing task specifications (max 50MB)</p>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="toggleCreateTask()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded">
+                            Cancel
+                        </button>
+                        <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
+                            Create & Assign Task
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Task Filters -->
+        <div class="dark-card rounded-lg shadow p-6 mb-8">
+            <h3 class="text-lg font-bold mb-4">Filter Tasks</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-gray-300 text-sm font-bold mb-2">Status</label>
+                    <select id="statusFilter" class="dark-input w-full py-2 px-3 rounded" onchange="applyFilters()">
+                        <option value="all" {{ 'selected' if status_filter == 'all' else '' }}>All Status</option>
+                        <option value="assigned" {{ 'selected' if status_filter == 'assigned' else '' }}>Assigned</option>
+                        <option value="in_progress" {{ 'selected' if status_filter == 'in_progress' else '' }}>In Progress</option>
+                        <option value="submitted" {{ 'selected' if status_filter == 'submitted' else '' }}>Submitted</option>
+                        <option value="completed" {{ 'selected' if status_filter == 'completed' else '' }}>Completed</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-gray-300 text-sm font-bold mb-2">Project Type</label>
+                    <select id="projectTypeFilter" class="dark-input w-full py-2 px-3 rounded" onchange="applyFilters()">
+                        <option value="all" {{ 'selected' if project_type_filter == 'all' else '' }}>All Types</option>
+                        {% for project_type in project_types %}
+                        <option value="{{ project_type }}" {{ 'selected' if project_type_filter == project_type else '' }}>
+                            {{ project_type.replace('_', ' ').title() }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-gray-300 text-sm font-bold mb-2">Assignee</label>
+                    <select id="assigneeFilter" class="dark-input w-full py-2 px-3 rounded" onchange="applyFilters()">
+                        <option value="all" {{ 'selected' if assignee_filter == 'all' else '' }}>All Employees</option>
+                        {% for employee in employees %}
+                        <option value="{{ employee.emp_id }}" {{ 'selected' if assignee_filter == employee.emp_id else '' }}>
+                            {{ employee.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tasks Display -->
+        <div class="dark-card rounded-lg shadow p-6">
+            <h3 class="text-lg font-bold mb-4">All Tasks ({{ tasks|length }})</h3>
+            
+            {% if tasks %}
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="text-left border-b border-gray-700">
+                            <th class="pb-2">Task ID</th>
+                            <th class="pb-2">Title</th>
+                            <th class="pb-2">Project Type</th>
+                            <th class="pb-2">Assigned To</th>
+                            <th class="pb-2">Status</th>
+                            <th class="pb-2">Priority</th>
+                            <th class="pb-2">Due Date</th>
+                            <th class="pb-2">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for task in tasks %}
+                        <tr class="border-b border-gray-700 hover:bg-gray-800">
+                            <td class="py-3">{{ task.task_id }}</td>
+                            <td class="py-3">{{ task.title }}</td>
+                            <td class="py-3">{{ task.project_type.replace('_', ' ').title() }}</td>
+                            <td class="py-3">{{ task.assigned_to_name }} ({{ task.assigned_to }})</td>
+                            <td class="py-3">
+                                <span class="status-badge status-{{ task.status }}">{{ task.status.replace('_', ' ').title() }}</span>
+                            </td>
+                            <td class="py-3">{{ task.priority }}</td>
+                            <td class="py-3">{{ task.due_date[:10] if task.due_date else 'N/A' }}</td>
+                            <td class="py-3">
+                                <button onclick="viewTaskDetails('{{ task.task_id }}')" class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-sm mr-2">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                {% if task.status == 'submitted' %}
+                                <button onclick="reviewTask('{{ task.task_id }}')" class="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-sm">
+                                    <i class="fas fa-check"></i> Review
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-400">
+                <i class="fas fa-tasks text-4xl mb-4"></i>
+                <p>No tasks found matching the current filters.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        function toggleCreateTask() {
+            const form = document.getElementById('createTaskForm');
+            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        }
+
+        async function submitTask(event) {
+            event.preventDefault();
+            
+            // Validate required fields
+            const taskId = document.getElementById('taskId').value;
+            const projectType = document.getElementById('projectType').value;
+            const complexity = document.getElementById('complexity').value;
+            const priority = document.getElementById('priority').value;
+            const specFile = document.getElementById('specFile').files[0];
+            
+            if (!taskId || !projectType || !complexity || !priority) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            if (!specFile) {
+                alert('Please select a specification ZIP file');
+                return;
+            }
+            
+            // Validate file type
+            if (!specFile.name.toLowerCase().endsWith('.zip')) {
+                alert('Please select a .zip file');
+                return;
+            }
+            
+            // Validate file size (50MB = 50 * 1024 * 1024 bytes)
+            const maxSize = 50 * 1024 * 1024;
+            if (specFile.size > maxSize) {
+                alert('File size must be less than 50MB');
+                return;
+            }
+
+            // Create FormData for file upload
+            const formData = new FormData();
+            formData.append('task_id', taskId);
+            formData.append('project_type', projectType);
+            formData.append('complexity', complexity);
+            formData.append('priority', priority);
+            formData.append('spec_file', specFile);
+            
+            // Add optional fields if provided
+            const title = document.getElementById('title').value;
+            const description = document.getElementById('description').value;
+            if (title) formData.append('title', title);
+            if (description) formData.append('description', description);
+
+            try {
+                const response = await fetch('/api/create_task', {
+                    method: 'POST',
+                    body: formData  // Don't set Content-Type header - browser will set it with boundary
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('Task created and assigned successfully!\\n' +
+                          'Assigned to: ' + result.assignment.name + ' (' + result.assignment.emp_id + ')\\n' +
+                          'Specification file: ' + result.task.spec_file_name + ' (' + 
+                          Math.round(result.task.spec_file_size / 1024) + ' KB)');
+                    location.reload(); // Refresh the page to show the new task
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error creating task:', error);
+                alert('An error occurred while creating the task');
+            }
+        }
+
+        function applyFilters() {
+            const status = document.getElementById('statusFilter').value;
+            const projectType = document.getElementById('projectTypeFilter').value;
+            const assignee = document.getElementById('assigneeFilter').value;
+
+            const params = new URLSearchParams();
+            if (status !== 'all') params.append('status', status);
+            if (projectType !== 'all') params.append('project_type', projectType);
+            if (assignee !== 'all') params.append('assignee', assignee);
+
+            window.location.href = '/task_management?' + params.toString();
+        }
+
+        function viewTaskDetails(taskId) {
+            alert('Task details for: ' + taskId);
+            // TODO: Implement task details modal
+        }
+
+        function reviewTask(taskId) {
+            alert('Review task: ' + taskId);
+            // TODO: Implement task review functionality
+        }
+    </script>
+</body>
+</html>
