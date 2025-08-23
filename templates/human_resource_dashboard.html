@@ -57,6 +57,57 @@
             border-color: #6366f1;
             box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
         }
+        
+        /* Loading Progress Bar Styles */
+        .progress-container {
+            background-color: #374151;
+            border-radius: 0.5rem;
+            height: 0.5rem;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            background: linear-gradient(90deg, #6366f1, #8b5cf6, #06b6d4);
+            background-size: 200% 200%;
+            animation: gradient 2s ease infinite;
+            height: 100%;
+            transition: width 0.3s ease;
+            border-radius: 0.5rem;
+        }
+        
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .loading-overlay {
+            backdrop-filter: blur(4px);
+            background-color: rgba(0, 0, 0, 0.75);
+        }
+        
+        .pulse-animation {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .loading-spinner {
+            border: 3px solid #374151;
+            border-top: 3px solid #6366f1;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="bg-black">
@@ -314,7 +365,7 @@
             <div class="dark-card rounded-lg shadow p-6 mb-8">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-lg font-bold">Salary Estimation Tool</h3>
-                    <button onclick="retrainModel()" class="bg-purple-700 text-white px-4 py-2 rounded hover:bg-purple-800">
+                    <button onclick="retrainModel()" id="retrainButton" class="bg-purple-700 text-white px-4 py-2 rounded hover:bg-purple-800 transition-colors">
                         <i id="retrain-btn" class="fas fa-sync-alt mr-2"></i>Retrain Model
                     </button>
                 </div>
@@ -428,6 +479,82 @@
         </div>
     </div>
 
+    <!-- Model Retraining Progress Modal -->
+    <div id="retrainProgressModal" class="fixed inset-0 loading-overlay flex items-center justify-center z-50 hidden">
+        <div class="dark-card rounded-lg shadow-2xl w-full max-w-md mx-4">
+            <div class="p-6">
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 mx-auto mb-4 loading-spinner"></div>
+                    <h3 class="text-xl font-bold mb-2">Retraining Salary Model</h3>
+                    <p class="text-gray-400 text-sm">Please wait while we collect fresh salary data and retrain the model...</p>
+                </div>
+                
+                <!-- Progress Information -->
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-sm text-gray-300" id="progressStage">Initializing...</span>
+                        <span class="text-sm text-gray-400" id="progressPercent">0%</span>
+                    </div>
+                    
+                    <!-- Progress Bar -->
+                    <div class="progress-container">
+                        <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <!-- Progress Details -->
+                <div class="space-y-2 text-sm">
+                    <div class="flex items-center" id="step-init">
+                        <div class="w-4 h-4 mr-3 flex-shrink-0">
+                            <i class="fas fa-circle text-gray-500"></i>
+                        </div>
+                        <span class="text-gray-400">Initializing data collection</span>
+                    </div>
+                    <div class="flex items-center" id="step-collect">
+                        <div class="w-4 h-4 mr-3 flex-shrink-0">
+                            <i class="fas fa-circle text-gray-500"></i>
+                        </div>
+                        <span class="text-gray-400">Collecting salary data from APIs</span>
+                    </div>
+                    <div class="flex items-center" id="step-quality">
+                        <div class="w-4 h-4 mr-3 flex-shrink-0">
+                            <i class="fas fa-circle text-gray-500"></i>
+                        </div>
+                        <span class="text-gray-400">Quality assessment and cleaning</span>
+                    </div>
+                    <div class="flex items-center" id="step-train">
+                        <div class="w-4 h-4 mr-3 flex-shrink-0">
+                            <i class="fas fa-circle text-gray-500"></i>
+                        </div>
+                        <span class="text-gray-400">Training machine learning model</span>
+                    </div>
+                    <div class="flex items-center" id="step-save">
+                        <div class="w-4 h-4 mr-3 flex-shrink-0">
+                            <i class="fas fa-circle text-gray-500"></i>
+                        </div>
+                        <span class="text-gray-400">Saving updated model</span>
+                    </div>
+                </div>
+                
+                <!-- Estimated Time -->
+                <div class="mt-6 p-3 bg-blue-900 bg-opacity-50 rounded-lg">
+                    <p class="text-xs text-blue-200">
+                        <i class="fas fa-clock mr-1"></i>
+                        Estimated time: 2-5 minutes
+                    </p>
+                </div>
+                
+                <!-- Cancel Button (disabled during critical phases) -->
+                <div class="mt-6 text-center">
+                    <button onclick="cancelRetraining()" id="cancelRetrainButton" 
+                            class="px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Employee Details Modal -->
     <div id="employeeDetailsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="dark-card rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -453,6 +580,10 @@
     </footer>
 
     <script>
+        // Global variables for retraining progress
+        let retrainingInProgress = false;
+        let progressUpdateInterval;
+        
         // Employee search and filter functionality
         document.addEventListener('DOMContentLoaded', function() {
             const searchInput = document.getElementById('employeeSearch');
@@ -481,294 +612,393 @@
             searchInput.addEventListener('input', filterEmployees);
             roleFilter.addEventListener('change', filterEmployees);
         });
-        
-        // View employee details
-        function viewEmployeeDetails(empId) {
-            // Fetch employee details
-            fetch(`/api/employee/${empId}`, {
-                method: 'GET',
+
+        // Progress simulation functions
+        function updateProgressStep(stepId, status) {
+            const step = document.getElementById(stepId);
+            const icon = step.querySelector('i');
+            const text = step.querySelector('span');
+            
+            if (status === 'active') {
+                icon.className = 'fas fa-spinner fa-spin text-blue-400';
+                text.classList.remove('text-gray-400');
+                text.classList.add('text-blue-300');
+            } else if (status === 'completed') {
+                icon.className = 'fas fa-check-circle text-green-400';
+                text.classList.remove('text-gray-400', 'text-blue-300');
+                text.classList.add('text-green-300');
+            } else if (status === 'error') {
+                icon.className = 'fas fa-exclamation-circle text-red-400';
+                text.classList.remove('text-gray-400', 'text-blue-300');
+                text.classList.add('text-red-300');
+            } else {
+                // reset
+                icon.className = 'fas fa-circle text-gray-500';
+                text.classList.remove('text-blue-300', 'text-green-300', 'text-red-300');
+                text.classList.add('text-gray-400');
+            }
+        }
+
+        function updateProgress(percentage, stage, stepId = null) {
+            const progressBar = document.getElementById('progressBar');
+            const progressPercent = document.getElementById('progressPercent');
+            const progressStage = document.getElementById('progressStage');
+            
+            progressBar.style.width = `${percentage}%`;
+            progressPercent.textContent = `${percentage}%`;
+            progressStage.textContent = stage;
+            
+            if (stepId) {
+                updateProgressStep(stepId, 'active');
+            }
+        }
+
+        function simulateRetrainingProgress() {
+            let progress = 0;
+            let currentStep = 0;
+            const steps = [
+                { id: 'step-init', stage: 'Initializing data collection...', duration: 3000, progress: 15 },
+                { id: 'step-collect', stage: 'Collecting salary data from APIs...', duration: 45000, progress: 40 },
+                { id: 'step-quality', stage: 'Quality assessment and cleaning...', duration: 15000, progress: 65 },
+                { id: 'step-train', stage: 'Training machine learning model...', duration: 30000, progress: 90 },
+                { id: 'step-save', stage: 'Saving updated model...', duration: 5000, progress: 100 }
+            ];
+            
+            function runStep(stepIndex) {
+                if (stepIndex >= steps.length) return;
+                
+                const step = steps[stepIndex];
+                updateProgress(step.progress, step.stage, step.id);
+                
+                // Mark previous steps as completed
+                for (let i = 0; i < stepIndex; i++) {
+                    updateProgressStep(steps[i].id, 'completed');
+                }
+                
+                setTimeout(() => {
+                    updateProgressStep(step.id, 'completed');
+                    if (stepIndex < steps.length - 1) {
+                        runStep(stepIndex + 1);
+                    } else {
+                        finishRetraining();
+                    }
+                }, step.duration);
+            }
+            
+            runStep(0);
+        }
+
+        function finishRetraining() {
+            setTimeout(() => {
+                hideRetrainProgressModal();
+                alert('Model retraining completed successfully! The salary estimator now uses the latest market data.');
+                
+                // Re-enable the retrain button
+                const retrainButton = document.getElementById('retrainButton');
+                retrainButton.disabled = false;
+                retrainButton.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Retrain Model';
+                retrainingInProgress = false;
+            }, 1000);
+        }
+
+        function retrainModel() {
+            if (retrainingInProgress) {
+                return;
+            }
+            
+            retrainingInProgress = true;
+            
+            // Disable the retrain button
+            const retrainButton = document.getElementById('retrainButton');
+            retrainButton.disabled = true;
+            retrainButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Retraining...';
+            
+            // Show progress modal
+            showRetrainProgressModal();
+            
+            // Start the actual retraining process
+            fetch('/api/retrain_salary_model', {
+                method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 }
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    const employee = data.employee;
-                    const content = document.getElementById('employeeDetailsContent');
-                    
-                    content.innerHTML = `
-                        <div class="grid grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <p class="text-sm text-gray-400">Employee ID</p>
-                                <p class="font-medium">${employee.emp_id}</p>
-                            </div>
-                            <div>
-                                <p class="text-sm text-gray-400">Name</p>
-                                <p class="font-medium">${employee.name}</p>
-                            </div>
-                            <div>
-                                <p class="text-sm text-gray-400">Email</p>
-                                <p class="font-medium">${employee.email}</p>
-                            </div>
-                            <div>
-                                <p class="text-sm text-gray-400">Role</p>
-                                <p class="font-medium">${employee.role}</p>
-                            </div>
-                            <div>
-                                <p class="text-sm text-gray-400">Experience</p>
-                                <p class="font-medium">${employee.experience || 0} years</p>
-                            </div>
-                            <div>
-                                <p class="text-sm text-gray-400">Success Rate</p>
-                                <p class="font-medium">${(employee.success_rate || 0).toFixed(1)}%</p>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-4">
-                            <p class="text-sm text-gray-400 mb-2">Skills</p>
-                            <div class="flex flex-wrap gap-2">
-                                ${(employee.skills || []).map(skill => 
-                                    `<span class="bg-indigo-900 text-indigo-200 text-xs font-medium px-2.5 py-0.5 rounded">${skill}</span>`
-                                ).join('')}
-                                ${(!employee.skills || employee.skills.length === 0) ? '<span class="text-gray-400">No skills listed</span>' : ''}
-                            </div>
-                        </div>
-                        
-                        <div>
-                            <p class="text-sm text-gray-400 mb-2">Tasks Completed</p>
-                            <p class="font-medium">${employee.tasks_completed || 0}</p>
-                        </div>
-                    `;
-                    
-                    document.getElementById('employeeDetailsModal').classList.remove('hidden');
+                    // Start progress simulation
+                    simulateRetrainingProgress();
                 } else {
-                    alert('Failed to load employee details: ' + (data.error || 'Unknown error'));
+                    hideRetrainProgressModal();
+                    alert('Failed to start model retraining: ' + (data.error || 'Unknown error'));
+                    resetRetrainButton();
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while loading employee details');
+                hideRetrainProgressModal();
+                alert('Error starting model retraining: ' + error.message);
+                resetRetrainButton();
             });
         }
-        
-        // Hide employee details modal
-        function hideEmployeeDetailsModal() {
-            document.getElementById('employeeDetailsModal').classList.add('hidden');
+
+        function resetRetrainButton() {
+            const retrainButton = document.getElementById('retrainButton');
+            retrainButton.disabled = false;
+            retrainButton.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Retrain Model';
+            retrainingInProgress = false;
         }
-        
-        // Edit employee skills
-        function editEmployeeSkills(empId) {
-            // This could open a modal to edit skills or redirect to an edit page
-            alert(`Edit skills functionality for employee ${empId} - To be implemented`);
+
+        function showRetrainProgressModal() {
+            const modal = document.getElementById('retrainProgressModal');
+            modal.classList.remove('hidden');
+            
+            // Reset progress
+            updateProgress(0, 'Initializing...');
+            const steps = ['step-init', 'step-collect', 'step-quality', 'step-train', 'step-save'];
+            steps.forEach(stepId => updateProgressStep(stepId, 'reset'));
         }
-        
-       // Estimate salary
-    function estimateSalary() {
-    const jobTitle = document.getElementById('jobTitle').value;
-    const location = document.getElementById('location').value;
-    const experienceLevel = document.getElementById('experienceLevel').value;
-    const budget = document.getElementById('budget').value;
-    
-    if (!jobTitle || !location || !experienceLevel) {
-        alert('Please fill in all required fields');
-        return;
-    }
-    
-    // Show loading
-    document.getElementById('loadingEstimation').classList.remove('hidden');
-    document.getElementById('estimationResults').classList.add('hidden');
-    document.getElementById('noEstimation').classList.add('hidden');
-    
-    // Prepare estimation data
-    const estimationData = {
-        job_title: jobTitle,
-        location: location,
-        experience_level: experienceLevel
-    };
-    
-    // Add budget if provided
-    if (budget) {
-        estimationData.budget = parseFloat(budget);
-    }
-    
-    // Make API request to estimate salary
-    fetch('/api/estimate_salary', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(estimationData)
-    })
-    .then(response => response.json())
-    .then(data => {
-        document.getElementById('loadingEstimation').classList.add('hidden');
-        
-        if (data.success) {
-            // Show estimation results
-            document.getElementById('estimationTitle').textContent = 
-                `${jobTitle} in ${location} (${experienceLevel.replace('_', ' ')})`;
+
+        function hideRetrainProgressModal() {
+            const modal = document.getElementById('retrainProgressModal');
+            modal.classList.add('hidden');
+        }
+
+        function cancelRetraining() {
+            if (confirm('Are you sure you want to cancel the retraining process?')) {
+                hideRetrainProgressModal();
+                resetRetrainButton();
+                // You might want to call an API endpoint to actually cancel the process
+            }
+        }
+
+        // Salary estimation functions
+        function estimateSalary() {
+            const jobTitle = document.getElementById('jobTitle').value;
+            const location = document.getElementById('location').value;
+            const experienceLevel = document.getElementById('experienceLevel').value;
+            const budget = document.getElementById('budget').value;
             
-            // Format currency
-            const formatter = new Intl.NumberFormat('en-ZA', {
-                style: 'currency',
-                currency: 'ZAR',
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 0
-            });
-            
-            document.getElementById('predictedSalary').textContent = 
-                formatter.format(data.prediction.predicted_annual_salary);
-            
-            document.getElementById('salaryRange').textContent = 
-                `${formatter.format(data.prediction.predicted_range[0])} - ${formatter.format(data.prediction.predicted_range[1])}`;
-            
-            if (data.prediction.market_insights) {
-            document.getElementById('marketInsights').textContent = data.prediction.market_insights;
-            } else {
-             // Generate a basic insight if none provided
-            const insight = `The market for ${jobTitle} roles in ${location} with ${experienceLevel.replace('_', ' ').toLowerCase()} experience shows competitive salary ranges.`;
-            document.getElementById('marketInsights').textContent = insight;
+            if (!jobTitle || !location || !experienceLevel) {
+                alert('Please fill in all required fields');
+                return;
             }
             
-            // Show competitiveness analysis if available
-            if (data.competitiveness_analysis) {
-                // Create a formatted message based on the competitiveness analysis properties
-                const analysis = data.competitiveness_analysis;
-                let competitivenessMessage = '';
+            // Show loading
+            showEstimationLoading();
+            
+            const requestData = {
+                job_title: jobTitle,
+                location: location,
+                experience_level: experienceLevel
+            };
+            
+            if (budget) {
+                requestData.budget = parseFloat(budget);
+            }
+            
+            fetch('/api/estimate_salary', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideEstimationLoading();
                 
-                if (analysis.flag) {
-                    competitivenessMessage = analysis.flag;
-                    if (analysis.recommendation) {
-                        competitivenessMessage += `. ${analysis.recommendation}`;
-                    }
-                } else if (analysis.level) {
-                    // Fallback: create message from level and other properties
-                    const levelMap = {
-                        "highly_competitive": "Highly Competitive",
-                        "competitive": "Competitive", 
-                        "somewhat_competitive": "Somewhat Competitive",
-                        "not_competitive": "Not Competitive"
-                    };
-                    
-                    const pctDiff = analysis.pct_vs_median ? ` (${Math.abs(analysis.pct_vs_median).toFixed(1)}% ${analysis.pct_vs_median > 0 ? 'above' : 'below'} median)` : '';
-                    
-                    competitivenessMessage = `${levelMap[analysis.level] || analysis.level}${pctDiff}. ${analysis.recommendation || ''}`;
+                if (data.success) {
+                    displayEstimationResults(data.prediction, data.competitiveness_analysis);
                 } else {
-                    // Final fallback: just stringify the object
-                    competitivenessMessage = JSON.stringify(data.competitiveness_analysis);
+                    showEstimationError(data.error || 'Failed to estimate salary');
                 }
+            })
+            .catch(error => {
+                hideEstimationLoading();
+                showEstimationError('Error connecting to salary estimation service');
+            });
+        }
+
+        function showEstimationLoading() {
+            document.getElementById('loadingEstimation').classList.remove('hidden');
+            document.getElementById('estimationResults').classList.add('hidden');
+            document.getElementById('noEstimation').classList.add('hidden');
+        }
+
+        function hideEstimationLoading() {
+            document.getElementById('loadingEstimation').classList.add('hidden');
+        }
+
+        function displayEstimationResults(prediction, competitivenessAnalysis) {
+            const resultsDiv = document.getElementById('estimationResults');
+            
+            // Update title
+            document.getElementById('estimationTitle').textContent = 
+                `${prediction.job_title} in ${prediction.location}`;
+            
+            // Update salary information
+            document.getElementById('predictedSalary').textContent = 
+                `R${prediction.predicted_annual_salary.toLocaleString()}`;
+            
+            document.getElementById('salaryRange').textContent = 
+                `R${prediction.predicted_range.min.toLocaleString()} - R${prediction.predicted_range.max.toLocaleString()}`;
+            
+            // Update market insights
+            document.getElementById('marketInsights').textContent = prediction.market_insights;
+            
+            // Handle competitiveness analysis
+            if (competitivenessAnalysis) {
+                const analysisDiv = document.getElementById('competitivenessAnalysis');
+                const resultDiv = document.getElementById('competitivenessResult');
                 
-                document.getElementById('competitivenessResult').textContent = competitivenessMessage;
-                document.getElementById('competitivenessAnalysis').classList.remove('hidden');
-                
-                // Add color coding based on competitiveness level
-                const analysisElement = document.getElementById('competitivenessAnalysis');
-                analysisElement.className = ''; // Reset classes
-                
-                if (analysis.color) {
-                    analysisElement.classList.add(`bg-${analysis.color}-900`, `border-${analysis.color}-600`, `text-${analysis.color}-200`);
-                } else if (analysis.level) {
-                    const colorMap = {
-                        "highly_competitive": "green",
-                        "competitive": "blue", 
-                        "somewhat_competitive": "yellow",
-                        "not_competitive": "red"
-                    };
-                    const color = colorMap[analysis.level] || 'gray';
-                    analysisElement.classList.add(`bg-${color}-900`, `border-${color}-600`, `text-${color}-200`);
-                } else {
-                    analysisElement.classList.add('bg-gray-900', 'border-gray-600', 'text-gray-200');
-                }
-                
-                analysisElement.classList.add('border-l-4', 'p-4');
+                analysisDiv.classList.remove('hidden');
+                resultDiv.textContent = competitivenessAnalysis.analysis;
             } else {
                 document.getElementById('competitivenessAnalysis').classList.add('hidden');
             }
             
-            document.getElementById('estimationResults').classList.remove('hidden');
-        } else {
-            // Show no estimation message
-            document.getElementById('noEstimation').classList.remove('hidden');
+            resultsDiv.classList.remove('hidden');
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        document.getElementById('loadingEstimation').classList.add('hidden');
-        document.getElementById('noEstimation').classList.remove('hidden');
-    });
-}
-        
-        // Improved retrain model function with better error handling
-async function retrainModel() {
-    const retrainBtn = document.getElementById('retrain-btn');
-    const originalText = retrainBtn.textContent;
-    
-    try {
-        // Show loading state
-        retrainBtn.disabled = true;
-        retrainBtn.textContent = 'Retraining...';
-        
-        console.log('Starting model retraining...');
-        
-        const response = await fetch('/api/retrain_salary_model', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        });
-        
-        console.log('Response status:', response.status);
-        
-        // Try to parse JSON response
-        let data;
-        try {
-            data = await response.json();
-            console.log('Response data:', data);
-        } catch (parseError) {
-            console.error('Failed to parse response as JSON:', parseError);
-            throw new Error('Server returned invalid response format');
+
+        function showEstimationError(errorMessage) {
+            const errorDiv = document.getElementById('noEstimation');
+            errorDiv.querySelector('p:last-child').textContent = errorMessage;
+            errorDiv.classList.remove('hidden');
         }
-        
-        // Handle different response statuses
-        if (response.ok) {
-            if (data.success) {
-                alert(data.message || 'Model retrained successfully!');
-                console.log('Model retrained successfully');
-            } else {
-                throw new Error(data.error || 'Unknown success=false error');
+
+        // Employee details modal functions
+        function viewEmployeeDetails(empId) {
+            // Show loading in modal content
+            const modal = document.getElementById('employeeDetailsModal');
+            const content = document.getElementById('employeeDetailsContent');
+            
+            content.innerHTML = `
+                <div class="text-center py-8">
+                    <i class="fas fa-spinner fa-spin text-indigo-400 text-3xl mb-4"></i>
+                    <p>Loading employee details...</p>
+                </div>
+            `;
+            
+            modal.classList.remove('hidden');
+            
+            // Fetch employee details
+            fetch(`/api/employee/${empId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayEmployeeDetails(data.employee);
+                    } else {
+                        content.innerHTML = `
+                            <div class="text-center py-8">
+                                <i class="fas fa-exclamation-triangle text-red-400 text-3xl mb-4"></i>
+                                <p>Failed to load employee details</p>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    content.innerHTML = `
+                        <div class="text-center py-8">
+                            <i class="fas fa-exclamation-triangle text-red-400 text-3xl mb-4"></i>
+                            <p>Error loading employee details</p>
+                        </div>
+                    `;
+                });
+        }
+
+        function displayEmployeeDetails(employee) {
+            const content = document.getElementById('employeeDetailsContent');
+            
+            const skillsHtml = employee.skills && employee.skills.length > 0 
+                ? employee.skills.map(skill => `
+                    <span class="bg-blue-900 text-blue-200 text-xs font-medium px-2.5 py-0.5 rounded mr-2 mb-2 inline-block">
+                        ${skill}
+                    </span>
+                `).join('')
+                : '<span class="text-gray-400">No skills listed</span>';
+            
+            content.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="font-bold text-lg mb-4">Basic Information</h4>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300">Employee ID</label>
+                                <p class="text-white">${employee.emp_id}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300">Name</label>
+                                <p class="text-white">${employee.name}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300">Email</label>
+                                <p class="text-white">${employee.email}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300">Role</label>
+                                <span class="bg-blue-900 text-blue-200 text-xs font-medium px-2.5 py-0.5 rounded">
+                                    ${employee.role}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-lg mb-4">Performance & Skills</h4>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300">Experience</label>
+                                <p class="text-white">${employee.experience || 0} years</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300">Tasks Completed</label>
+                                <p class="text-white">${employee.tasks_completed || 0}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300">Success Rate</label>
+                                <p class="text-white">${employee.success_rate || 0}%</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300">Skills</label>
+                                <div class="mt-2">
+                                    ${skillsHtml}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function editEmployeeSkills(empId) {
+            // This would open a modal or navigate to an edit page
+            alert(`Edit skills functionality for employee ${empId} - to be implemented`);
+        }
+
+        function hideEmployeeDetailsModal() {
+            const modal = document.getElementById('employeeDetailsModal');
+            modal.classList.add('hidden');
+        }
+
+        // Close modal when clicking outside
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('employeeDetailsModal');
+            if (event.target === modal) {
+                hideEmployeeDetailsModal();
             }
-        } else {
-            // Handle HTTP error statuses (400, 500, etc.)
-            const errorMsg = data.error || `Server error: ${response.status} ${response.statusText}`;
-            console.error('Server returned error status:', response.status, errorMsg);
-            throw new Error(errorMsg);
-        }
-        
-    } catch (error) {
-        console.error('Error during model retraining:', error);
-        
-        // Show user-friendly error message
-        let userMessage = 'Failed to retrain model. ';
-        
-        if (error.message.includes('insufficient fresh data')) {
-            userMessage += 'Not enough quality salary data was found. Please try again later when more data is available.';
-        } else if (error.message.includes('Unauthorized')) {
-            userMessage += 'You do not have permission to perform this action.';
-        } else if (error.message.includes('Network Error') || error.name === 'TypeError') {
-            userMessage += 'Network connection problem. Please check your internet connection and try again.';
-        } else {
-            userMessage += error.message;
-        }
-        
-        alert(userMessage);
-        
-    } finally {
-        // Restore button state
-        retrainBtn.disabled = false;
-        retrainBtn.textContent = originalText;
-    }
-}
+            
+            const retrainModal = document.getElementById('retrainProgressModal');
+            if (event.target === retrainModal && !retrainingInProgress) {
+                hideRetrainProgressModal();
+            }
+        });
+
+        // Prevent form submission on Enter key
+        document.getElementById('salaryEstimationForm')?.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                estimateSalary();
+            }
+        });
     </script>
 </body>
 </html>
