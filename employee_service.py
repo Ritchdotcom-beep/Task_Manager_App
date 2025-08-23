@@ -27,11 +27,45 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev_secret_key_for_api'
 db = SQLAlchemy(app)
 
 
-# Updated Employee Model with all fields referenced in main_app.py
+class EmployeeRecommendation(db.Model):
+    __tablename__ = 'employee_recommendations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), nullable=False)
+    suggested_role = db.Column(db.String(50), nullable=False)
+    skills = db.Column(db.ARRAY(db.String(50)), default=[])
+    experience = db.Column(db.Integer, default=0)
+    
+    # Recommendation metadata
+    recommended_by = db.Column(db.String(50), nullable=False)  # HR emp_id
+    status = db.Column(db.String(30), default='pending_admin_review')  # pending_admin_review, approved, rejected, processed
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    processed_at = db.Column(db.DateTime, nullable=True)
+    processed_by = db.Column(db.String(50), nullable=True)  # Admin emp_id
+    notes = db.Column(db.Text, nullable=True)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'email': self.email,
+            'suggested_role': self.suggested_role,
+            'skills': self.skills or [],
+            'experience': self.experience or 0,
+            'recommended_by': self.recommended_by,
+            'status': self.status,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'processed_at': self.processed_at.isoformat() if self.processed_at else None,
+            'processed_by': self.processed_by,
+            'notes': self.notes
+        }
+
+
+
 class Employee(db.Model):
     __tablename__ = 'employees'
     
-    # Define emp_id as an String primary key with a sequence
     emp_id = db.Column(db.String(50), primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), nullable=False)
@@ -41,11 +75,14 @@ class Employee(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, nullable=True)
     
-    # Added fields referenced in main_app.py
+    # Additional fields
     skills = db.Column(db.ARRAY(db.String(50)), default=[])
     experience = db.Column(db.Integer, default=0)
     tasks_completed = db.Column(db.Integer, default=0)
     success_rate = db.Column(db.Float, default=0.0)
+    
+    # NEW: Track if employee was created from recommendation
+    created_from_recommendation = db.Column(db.Integer, db.ForeignKey('employee_recommendations.id'), nullable=True)
     
     def __repr__(self):
         return f'<Employee {self.emp_id} - {self.name}>'
@@ -58,21 +95,23 @@ class Employee(db.Model):
     
     def to_dict(self):
         return {
-            'emp_id': self.emp_id,  # This will be an integer
+            'emp_id': self.emp_id,
             'name': self.name,
             'email': self.email,
-            'role': self.role.strip().lower(),  # Simplified role format
-            'is_first_login': bool(self.is_first_login),  # Ensure boolean
+            'role': self.role.strip().lower(),
+            'is_first_login': bool(self.is_first_login),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'last_login': self.last_login.isoformat() if self.last_login else None,
             'skills': self.skills or [],
             'experience': self.experience or 0,
             'tasks_completed': self.tasks_completed or 0,
-            'success_rate': self.success_rate or 0.0
+            'success_rate': self.success_rate or 0.0,
+            'created_from_recommendation': self.created_from_recommendation
         }
 
+
 # Function to generate random password
-def generate_random_password(length=5):  # Increased default length to 12
+def generate_random_password(length=5):  
     characters = string.ascii_letters + string.digits + string.punctuation
     return ''.join(random.choice(characters) for _ in range(length))
 
@@ -138,7 +177,243 @@ def authenticate_request():
         return False
     return True
 
+
+@app.route('/api/employee-recommendations', methods=['POST'])
+def create_recommendation():
+    """HR creates employee recommendation"""
+    if not authenticate_request():
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.json
+    required_fields = ['name', 'email', 'suggested_role', 'recommended_by']
+    
+    if not all(k in data for k in required_fields):
+        return jsonify({'error': f'Missing required fields: {required_fields}'}), 400
+    
+    # Check if email already exists in employees or pending recommendations
+    existing_employee = Employee.query.filter_by(email=data['email']).first()
+    if existing_employee:
+        return jsonify({'error': 'Email already exists in employee database'}), 409
+    
+    existing_recommendation = EmployeeRecommendation.query.filter_by(
+        email=data['email'], 
+        status='pending_admin_review'
+    ).first()
+    if existing_recommendation:
+        return jsonify({'error': 'Email already has pending recommendation'}), 409
+    
+    try:
+        recommendation = EmployeeRecommendation(
+            name=data['name'],
+            email=data['email'],
+            suggested_role=data['suggested_role'],
+            skills=data.get('skills', []),
+            experience=data.get('experience', 0),
+            recommended_by=data['recommended_by']
+        )
+        
+        db.session.add(recommendation)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Employee recommendation submitted successfully',
+            'recommendation': recommendation.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/employee-recommendations', methods=['GET'])
+def get_recommendations():
+    """Get employee recommendations (filtered by status)"""
+    if not authenticate_request():
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    status = request.args.get('status', 'pending_admin_review')
+    recommended_by = request.args.get('recommended_by')
+    
+    query = EmployeeRecommendation.query
+    
+    if status != 'all':
+        query = query.filter_by(status=status)
+    
+    if recommended_by:
+        query = query.filter_by(recommended_by=recommended_by)
+    
+    recommendations = query.order_by(EmployeeRecommendation.created_at.desc()).all()
+    
+    return jsonify({
+        'success': True,
+        'recommendations': [rec.to_dict() for rec in recommendations],
+        'count': len(recommendations)
+    })
+
+@app.route('/api/employee-recommendations/<int:rec_id>', methods=['GET'])
+def get_recommendation(rec_id):
+    """Get specific recommendation"""
+    if not authenticate_request():
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    recommendation = EmployeeRecommendation.query.get(rec_id)
+    if not recommendation:
+        return jsonify({'error': 'Recommendation not found'}), 404
+    
+    return jsonify({
+        'success': True,
+        'recommendation': recommendation.to_dict()
+    })
+
+@app.route('/api/employee-recommendations/<int:rec_id>/process', methods=['PUT'])
+def process_recommendation(rec_id):
+    """Admin processes recommendation (approve/reject)"""
+    if not authenticate_request():
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.json
+    action = data.get('action')  # 'approve' or 'reject'
+    processed_by = data.get('processed_by')  # Admin emp_id
+    notes = data.get('notes', '')
+    
+    if action not in ['approve', 'reject']:
+        return jsonify({'error': 'Action must be approve or reject'}), 400
+    
+    recommendation = EmployeeRecommendation.query.get(rec_id)
+    if not recommendation:
+        return jsonify({'error': 'Recommendation not found'}), 404
+    
+    if recommendation.status != 'pending_admin_review':
+        return jsonify({'error': 'Recommendation already processed'}), 409
+    
+    try:
+        if action == 'approve':
+            # Create employee from recommendation
+            emp_id = get_next_employee_id()
+            temp_password = generate_random_password()
+            
+            new_employee = Employee(
+                emp_id=emp_id,
+                name=recommendation.name,
+                email=recommendation.email,
+                role=recommendation.suggested_role,
+                skills=recommendation.skills,
+                experience=recommendation.experience,
+                created_from_recommendation=rec_id
+            )
+            new_employee.set_password(temp_password)
+            
+            db.session.add(new_employee)
+            
+            # Update recommendation status
+            recommendation.status = 'approved'
+            recommendation.processed_at = datetime.utcnow()
+            recommendation.processed_by = processed_by
+            recommendation.notes = notes
+            
+            db.session.commit()
+            
+            # Send credentials email
+            send_credentials_email(
+                email=recommendation.email,
+                emp_id=emp_id,
+                temp_password=temp_password
+            )
+            
+            return jsonify({
+                'success': True,
+                'message': 'Employee created successfully from recommendation',
+                'employee': new_employee.to_dict(),
+                'recommendation': recommendation.to_dict()
+            }), 201
+            
+        else:  # reject
+            recommendation.status = 'rejected'
+            recommendation.processed_at = datetime.utcnow()
+            recommendation.processed_by = processed_by
+            recommendation.notes = notes
+            
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Recommendation rejected',
+                'recommendation': recommendation.to_dict()
+            })
+            
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 # API Routes
+@app.route('/api/employees', methods=['POST'])
+def create_employee():
+    """Admin creates employee directly (restricted to HR role only)"""
+    if not authenticate_request():
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.json
+    
+    # RESTRICTION: Only allow HR role creation directly
+    if data.get('role') != 'human resource':
+        return jsonify({
+            'error': 'Direct employee creation restricted to HR role only. Other employees must come from HR recommendations.'
+        }), 403
+    
+    # Validate required fields
+    required_fields = ['name', 'email', 'role']
+    if not all(k in data for k in required_fields):
+        return jsonify({'error': f'Missing required fields: {required_fields}'}), 400
+    
+    # Check if email already exists
+    existing_employee = Employee.query.filter_by(email=data['email']).first()
+    if existing_employee:
+        return jsonify({'error': 'Email already exists'}), 409
+    
+    try:
+        # Generate employee ID if not provided
+        if 'emp_id' not in data or not data['emp_id']:
+            emp_id = get_next_employee_id()
+        else:
+            emp_id = str(data['emp_id'])
+            if Employee.query.get(emp_id):
+                return jsonify({'error': 'Employee ID already exists'}), 409
+        
+        temp_password = generate_random_password()
+        
+        new_employee = Employee(
+            emp_id=emp_id,
+            name=data['name'],
+            email=data['email'],
+            role=data['role'],
+            skills=data.get('skills', []),
+            experience=data.get('experience', 0),
+            tasks_completed=data.get('tasks_completed', 0),
+            success_rate=data.get('success_rate', 0.0)
+        )
+        new_employee.set_password(temp_password)
+        
+        db.session.add(new_employee)
+        db.session.commit()
+        
+        # Send email with credentials
+        send_credentials_email(
+            email=data['email'],
+            emp_id=emp_id,
+            temp_password=temp_password
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'HR employee created successfully',
+            'employee': new_employee.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+    
+
 @app.route('/api/employees', methods=['GET'])
 def get_all_employees():
     if not authenticate_request():
@@ -158,115 +433,6 @@ def get_employee(emp_id):
     
     return jsonify(employee.to_dict())
 
-@app.route('/api/employees', methods=['POST'])
-def create_employee():
-    if not authenticate_request():
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    data = request.json
-    
-    # Validate required fields
-    required_fields = ['name', 'email', 'role']
-    if not all(k in data for k in required_fields):
-        return jsonify({'error': f'Missing required fields: {required_fields}'}), 400
-    
-    # Generate employee ID if not provided
-    if 'emp_id' not in data or not data['emp_id']:
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                emp_id = get_next_employee_id()  # This returns a string
-                temp_password = generate_random_password(5)
-                
-                new_employee = Employee(
-                    emp_id=emp_id,
-                    name=data['name'],
-                    email=data['email'],
-                    role=data['role'],
-                    skills=data.get('skills', []),
-                    experience=data.get('experience', 0),
-                    tasks_completed=data.get('tasks_completed', 0),
-                    success_rate=data.get('success_rate', 0.0)
-                )
-                new_employee.set_password(temp_password)
-                
-                db.session.add(new_employee)
-                db.session.commit()
-                
-                # Send email with credentials
-                send_credentials_email(
-                    email=data['email'],
-                    emp_id=emp_id,
-                    temp_password=temp_password
-                )
-                
-                return jsonify({
-                    'success': True,
-                    'message': 'Employee created successfully',
-                    'employee': new_employee.to_dict()
-                }), 201
-                
-            except Exception as e:
-                db.session.rollback()
-                if attempt == max_retries - 1:
-                    return jsonify({
-                        'error': f'Failed after {max_retries} attempts: {str(e)}'
-                    }), 500
-                continue
-    else:
-        # Handle manual ID entry
-        try:
-            # Ensure emp_id is a string
-            emp_id = str(data['emp_id'])
-            
-            # Check for existing employee
-            if Employee.query.get(emp_id):
-                return jsonify({
-                    'error': 'Employee ID already exists'
-                }), 409  # 409 for conflict
-                
-            # Generate secure password
-            temp_password = generate_random_password(5)
-            
-            new_employee = Employee(
-                emp_id=emp_id,
-                name=data['name'],
-                email=data['email'],
-                role=data['role'],
-                skills=data.get('skills', []),
-                experience=data.get('experience', 0),
-                tasks_completed=data.get('tasks_completed', 0),
-                success_rate=data.get('success_rate', 0.0)
-            )
-            new_employee.set_password(temp_password)
-            
-            db.session.add(new_employee)
-            db.session.commit()
-            
-            # Send email with credentials
-            success = send_credentials_email(
-                email=data['email'],
-                emp_id=emp_id,
-                temp_password=temp_password
-            )
-            if not success:
-                print(f"Warning: Email could not be sent to {data['email']}")
-            
-            # Proper 201 response with resource location
-            return jsonify({
-                'success': True,
-                'message': 'Employee created successfully',
-                'employee': new_employee.to_dict(),
-                'links': {
-                    'self': url_for('get_employee', emp_id=new_employee.emp_id, _external=True)
-                }
-            }), 201  # 201 for created
-            
-        except Exception as e:
-            db.session.rollback()
-            return jsonify({
-                'error': str(e)
-            }), 500  # 500 for server error
         
 @app.route('/api/employees/<emp_id>', methods=['PUT'])
 def update_employee(emp_id):

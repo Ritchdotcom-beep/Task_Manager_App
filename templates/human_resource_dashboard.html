@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Human Resource Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <style>
+        .sidebar {
+            min-height: calc(100vh - 64px);
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+        .transition-card {
+            transition: all 0.3s ease;
+        }
+        /* Dark theme overrides */
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+        .dark-card {
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+            border: 1px solid #333;
+        }
+        .dark-sidebar {
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+            border-right: 1px solid #333;
+        }
+        .dark-hover:hover {
+            background-color: #2a2a2a;
+        }
+        .dark-input {
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+            border-color: #444;
+        }
+        .dark-input::placeholder {
+            color: #888;
+        }
+        .dark-input:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+        .dark-select {
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+            border-color: #444;
+        }
+        .dark-select:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-black">
+    <nav class="bg-gray-800 text-white p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-4">
+                <i class="fas fa-users text-2xl"></i>
+                <h1 class="text-xl font-bold">AI Task Management - HR</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span>Welcome, {{ employee.name }}</span>
+                <a href="/logout" class="bg-indigo-700 px-4 py-2 rounded hover:bg-indigo-800">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto flex">
+        <!-- Sidebar -->
+        <div class="sidebar w-64 dark-sidebar shadow-md p-6">
+            <div class="mb-8">
+                <div class="w-24 h-24 rounded-full bg-indigo-900 mx-auto flex items-center justify-center mb-2">
+                    <i class="fas fa-user-tie text-4xl text-indigo-400"></i>
+                </div>
+                <p class="text-center font-bold">{{ employee.name }}</p>
+                <p class="text-center text-gray-400 text-sm">{{ employee.role }}</p>
+            </div>
+            <ul class="space-y-2">
+                <li class="bg-indigo-900 rounded p-2">
+                    <a href="/human_resource_dashboard" class="flex items-center space-x-2 text-indigo-200">
+                        <i class="fas fa-tachometer-alt"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="dark-hover rounded p-2">
+                    <a href="/employee_management" class="flex items-center space-x-2">
+                        <i class="fas fa-user-friends"></i>
+                        <span>Employee Management</span>
+                    </a>
+                </li>
+                <li class="dark-hover rounded p-2">
+                    <a href="/salary_estimator" class="flex items-center space-x-2">
+                        <i class="fas fa-money-bill-wave"></i>
+                        <span>Salary Estimator</span>
+                    </a>
+                </li>
+                <li class="dark-hover rounded p-2">
+                    <a href="/change_password" class="flex items-center space-x-2">
+                        <i class="fas fa-key"></i>
+                        <span>Change Password</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 p-6">
+            <h2 class="text-2xl font-bold mb-6 text-white">Human Resource Dashboard</h2>
+
+            <!-- Stats Row -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="dark-card rounded-lg shadow p-6 transition-card card-hover">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-gray-400">Total Employees</p>
+                            <h3 class="text-3xl font-bold">{{ hr_stats.total_employees }}</h3>
+                        </div>
+                        <div class="bg-blue-900 p-3 rounded-full">
+                            <i class="fas fa-users text-blue-400"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="dark-card rounded-lg shadow p-6 transition-card card-hover">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-gray-400">Pending Recommendations</p>
+                            <h3 class="text-3xl font-bold">{{ hr_stats.pending_recommendations }}</h3>
+                        </div>
+                        <div class="bg-yellow-900 p-3 rounded-full">
+                            <i class="fas fa-clock text-yellow-400"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="dark-card rounded-lg shadow p-6 transition-card card-hover">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-gray-400">Approved Recommendations</p>
+                            <h3 class="text-3xl font-bold">{{ hr_stats.approved_recommendations }}</h3>
+                        </div>
+                        <div class="bg-green-900 p-3 rounded-full">
+                            <i class="fas fa-check-circle text-green-400"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="dark-card rounded-lg shadow p-6 transition-card card-hover">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-gray-400">Rejected Recommendations</p>
+                            <h3 class="text-3xl font-bold">{{ hr_stats.rejected_recommendations }}</h3>
+                        </div>
+                        <div class="bg-red-900 p-3 rounded-full">
+                            <i class="fas fa-times-circle text-red-400"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Employee Recommendations Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <!-- Pending Recommendations -->
+                <div class="dark-card rounded-lg shadow p-6">
+                    <h3 class="text-lg font-bold mb-4 flex items-center">
+                        <i class="fas fa-clock mr-2 text-yellow-400"></i>
+                        My Pending Recommendations
+                    </h3>
+                    <div class="space-y-4 max-h-80 overflow-y-auto">
+                        {% for rec in my_pending_recommendations %}
+                        <div class="flex items-center p-3 border border-gray-700 rounded-lg dark-hover">
+                            <div class="w-10 h-10 rounded-full bg-yellow-900 flex items-center justify-center mr-4">
+                                <i class="fas fa-user text-yellow-400"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="font-medium">{{ rec.name }}</p>
+                                <p class="text-sm text-gray-400">{{ rec.suggested_role }}</p>
+                                <p class="text-xs text-gray-500">{{ format_date(rec.created_at) }}</p>
+                            </div>
+                            <div class="text-right">
+                                <span class="bg-yellow-900 text-yellow-200 text-xs font-medium px-2.5 py-0.5 rounded">
+                                    Pending Review
+                                </span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% if not my_pending_recommendations %}
+                        <p class="text-gray-400 text-center p-4">No pending recommendations</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Recent Processed Recommendations -->
+                <div class="dark-card rounded-lg shadow p-6">
+                    <h3 class="text-lg font-bold mb-4 flex items-center">
+                        <i class="fas fa-history mr-2 text-blue-400"></i>
+                        Recently Processed
+                    </h3>
+                    <div class="space-y-4 max-h-80 overflow-y-auto">
+                        {% for rec in my_approved_recommendations[:3] %}
+                        <div class="flex items-center p-3 border border-gray-700 rounded-lg dark-hover">
+                            <div class="w-10 h-10 rounded-full bg-green-900 flex items-center justify-center mr-4">
+                                <i class="fas fa-check text-green-400"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="font-medium">{{ rec.name }}</p>
+                                <p class="text-sm text-gray-400">{{ rec.suggested_role }}</p>
+                                <p class="text-xs text-gray-500">{{ format_date(rec.processed_at) }}</p>
+                            </div>
+                            <div class="text-right">
+                                <span class="bg-green-900 text-green-200 text-xs font-medium px-2.5 py-0.5 rounded">
+                                    Approved
+                                </span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% for rec in my_rejected_recommendations[:2] %}
+                        <div class="flex items-center p-3 border border-gray-700 rounded-lg dark-hover">
+                            <div class="w-10 h-10 rounded-full bg-red-900 flex items-center justify-center mr-4">
+                                <i class="fas fa-times text-red-400"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="font-medium">{{ rec.name }}</p>
+                                <p class="text-sm text-gray-400">{{ rec.suggested_role }}</p>
+                                <p class="text-xs text-gray-500">{{ format_date(rec.processed_at) }}</p>
+                            </div>
+                            <div class="text-right">
+                                <span class="bg-red-900 text-red-200 text-xs font-medium px-2.5 py-0.5 rounded">
+                                    Rejected
+                                </span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% if not my_approved_recommendations and not my_rejected_recommendations %}
+                        <p class="text-gray-400 text-center p-4">No processed recommendations yet</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Employee Management -->
+            <div class="dark-card rounded-lg shadow p-6 mb-8">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold">Employee Management</h3>
+                    <button onclick="window.location.href='/hr/create_employee'" class="bg-indigo-700 text-white px-4 py-2 rounded hover:bg-indigo-800">
+                        <i class="fas fa-plus mr-2"></i>Recommend Employee
+                    </button>
+                </div>
+                
+                <div class="mb-4 flex space-x-4">
+                    <input type="text" placeholder="Search employees..." class="dark-input flex-1 p-2 rounded" id="employeeSearch">
+                    <select class="dark-select p-2 rounded" id="roleFilter">
+                        <option value="">All Roles</option>
+                        <option value="developer">Developer</option>
+                        <option value="project_manager">Project Manager</option>
+                        <option value="human_resource">Human Resource</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="text-left border-b border-gray-700">
+                                <th class="pb-2">Employee ID</th>
+                                <th class="pb-2">Name</th>
+                                <th class="pb-2">Role</th>
+                                <th class="pb-2">Email</th>
+                                <th class="pb-2">Experience</th>
+                                <th class="pb-2">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="employeeTableBody">
+                            {% for employee in employees %}
+                            <tr class="border-b border-gray-700 hover:bg-gray-800 employee-row" data-role="{{ employee.role }}" data-name="{{ employee.name.lower() }}">
+                                <td class="py-3">{{ employee.emp_id }}</td>
+                                <td class="py-3">{{ employee.name }}</td>
+                                <td class="py-3">
+                                    <span class="bg-blue-900 text-blue-200 text-xs font-medium px-2.5 py-0.5 rounded">
+                                        {{ employee.role|title }}
+                                    </span>
+                                </td>
+                                <td class="py-3">{{ employee.email }}</td>
+                                <td class="py-3">{{ employee.experience or 0 }} years</td>
+                                <td class="py-3">
+                                    <button onclick="viewEmployeeDetails('{{ employee.emp_id }}')" class="text-green-400 hover:text-green-300 mr-2">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button onclick="editEmployeeSkills('{{ employee.emp_id }}')" class="text-blue-400 hover:text-blue-300">
+                                        <i class="fas fa-cog"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not employees %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-gray-400">No employees found</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Salary Estimation Section -->
+            <div class="dark-card rounded-lg shadow p-6 mb-8">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold">Salary Estimation Tool</h3>
+                    <button onclick="retrainModel()" class="bg-purple-700 text-white px-4 py-2 rounded hover:bg-purple-800">
+                        <i id="retrain-btn" class="fas fa-sync-alt mr-2"></i>Retrain Model
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="font-medium mb-4">Estimate Salary</h4>
+                        <form id="salaryEstimationForm">
+                            <div class="mb-4">
+                                <label class="block text-gray-300 text-sm font-bold mb-2" for="jobTitle">
+                                    Job Title
+                                </label>
+                                <select class="dark-select shadow appearance-none border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:shadow-outline" 
+                                        id="jobTitle" required>
+                                    <option value="">Select a job title</option>
+                                    {% for title in job_titles %}
+                                    <option value="{{ title }}">{{ title|title }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="block text-gray-300 text-sm font-bold mb-2" for="location">
+                                    Location
+                                </label>
+                                <select class="dark-select shadow appearance-none border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:shadow-outline" 
+                                        id="location" required>
+                                    <option value="">Select a location</option>
+                                    {% for location in locations %}
+                                    <option value="{{ location }}">{{ location|title }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="block text-gray-300 text-sm font-bold mb-2" for="experienceLevel">
+                                    Experience Level
+                                </label>
+                                <select class="dark-select shadow appearance-none border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:shadow-outline" 
+                                        id="experienceLevel" required>
+                                    <option value="">Select experience level</option>
+                                    {% for level in experience_levels %}
+                                    <option value="{{ level }}">{{ level|replace('_', ' ')|title }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="block text-gray-300 text-sm font-bold mb-2" for="budget">
+                                    Budget (optional)
+                                </label>
+                                <input class="dark-input shadow appearance-none border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:shadow-outline" 
+                                       id="budget" type="number" placeholder="Enter budget amount">
+                            </div>
+                            
+                            <div class="flex items-center justify-between">
+                                <button class="bg-indigo-700 hover:bg-indigo-800 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" 
+                                        type="button" onclick="estimateSalary()">
+                                    Estimate Salary
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Estimation Results -->
+                    <div>
+                        <h4 class="font-medium mb-4">Salary Estimation Results</h4>
+                        <div id="loadingEstimation" class="hidden">
+                            <div class="text-center py-8">
+                                <i class="fas fa-spinner fa-spin text-indigo-400 text-3xl mb-4"></i>
+                                <p>Calculating salary estimation...</p>
+                            </div>
+                        </div>
+                        
+                        <div id="estimationResults" class="hidden">
+                            <div class="border border-gray-700 rounded-lg p-4 mb-4">
+                                <h5 class="font-bold text-lg mb-2" id="estimationTitle"></h5>
+                                
+                                <div class="grid grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <p class="text-sm text-gray-400">Predicted Annual Salary</p>
+                                        <p class="font-bold text-xl" id="predictedSalary"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-400">Salary Range</p>
+                                        <p class="font-medium" id="salaryRange"></p>
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-blue-900 border-l-4 border-blue-600 text-blue-200 p-4 mb-4" role="alert">
+                                    <p class="font-bold">Market Insights</p>
+                                    <p id="marketInsights"></p>
+                                </div>
+                                
+                                <div id="competitivenessAnalysis" class="hidden">
+                                    <h6 class="font-bold mb-2">Competitiveness Analysis</h6>
+                                    <p id="competitivenessResult"></p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="noEstimation" class="hidden">
+                            <div class="bg-yellow-900 border-l-4 border-yellow-600 text-yellow-200 p-4" role="alert">
+                                <p class="font-bold">Estimation Failed</p>
+                                <p>We couldn't generate a salary estimation. Please check your inputs and try again.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Employee Details Modal -->
+    <div id="employeeDetailsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="dark-card rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold">Employee Details</h3>
+                    <button class="text-gray-400 hover:text-gray-300" onclick="hideEmployeeDetailsModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div id="employeeDetailsContent">
+                    <!-- Content will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-gray-900 text-gray-300 p-4 mt-8">
+        <div class="container mx-auto text-center">
+            <p>AI Task Management - Human Resource System &copy; 2025</p>
+        </div>
+    </footer>
+
+    <script>
+        // Employee search and filter functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('employeeSearch');
+            const roleFilter = document.getElementById('roleFilter');
+            const employeeRows = document.querySelectorAll('.employee-row');
+
+            function filterEmployees() {
+                const searchTerm = searchInput.value.toLowerCase();
+                const selectedRole = roleFilter.value;
+
+                employeeRows.forEach(row => {
+                    const name = row.dataset.name;
+                    const role = row.dataset.role;
+                    
+                    const matchesSearch = name.includes(searchTerm);
+                    const matchesRole = !selectedRole || role === selectedRole;
+                    
+                    if (matchesSearch && matchesRole) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            }
+
+            searchInput.addEventListener('input', filterEmployees);
+            roleFilter.addEventListener('change', filterEmployees);
+        });
+        
+        // View employee details
+        function viewEmployeeDetails(empId) {
+            // Fetch employee details
+            fetch(`/api/employee/${empId}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const employee = data.employee;
+                    const content = document.getElementById('employeeDetailsContent');
+                    
+                    content.innerHTML = `
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <p class="text-sm text-gray-400">Employee ID</p>
+                                <p class="font-medium">${employee.emp_id}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-400">Name</p>
+                                <p class="font-medium">${employee.name}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-400">Email</p>
+                                <p class="font-medium">${employee.email}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-400">Role</p>
+                                <p class="font-medium">${employee.role}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-400">Experience</p>
+                                <p class="font-medium">${employee.experience || 0} years</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-400">Success Rate</p>
+                                <p class="font-medium">${(employee.success_rate || 0).toFixed(1)}%</p>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <p class="text-sm text-gray-400 mb-2">Skills</p>
+                            <div class="flex flex-wrap gap-2">
+                                ${(employee.skills || []).map(skill => 
+                                    `<span class="bg-indigo-900 text-indigo-200 text-xs font-medium px-2.5 py-0.5 rounded">${skill}</span>`
+                                ).join('')}
+                                ${(!employee.skills || employee.skills.length === 0) ? '<span class="text-gray-400">No skills listed</span>' : ''}
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <p class="text-sm text-gray-400 mb-2">Tasks Completed</p>
+                            <p class="font-medium">${employee.tasks_completed || 0}</p>
+                        </div>
+                    `;
+                    
+                    document.getElementById('employeeDetailsModal').classList.remove('hidden');
+                } else {
+                    alert('Failed to load employee details: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while loading employee details');
+            });
+        }
+        
+        // Hide employee details modal
+        function hideEmployeeDetailsModal() {
+            document.getElementById('employeeDetailsModal').classList.add('hidden');
+        }
+        
+        // Edit employee skills
+        function editEmployeeSkills(empId) {
+            // This could open a modal to edit skills or redirect to an edit page
+            alert(`Edit skills functionality for employee ${empId} - To be implemented`);
+        }
+        
+       // Estimate salary
+    function estimateSalary() {
+    const jobTitle = document.getElementById('jobTitle').value;
+    const location = document.getElementById('location').value;
+    const experienceLevel = document.getElementById('experienceLevel').value;
+    const budget = document.getElementById('budget').value;
+    
+    if (!jobTitle || !location || !experienceLevel) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    // Show loading
+    document.getElementById('loadingEstimation').classList.remove('hidden');
+    document.getElementById('estimationResults').classList.add('hidden');
+    document.getElementById('noEstimation').classList.add('hidden');
+    
+    // Prepare estimation data
+    const estimationData = {
+        job_title: jobTitle,
+        location: location,
+        experience_level: experienceLevel
+    };
+    
+    // Add budget if provided
+    if (budget) {
+        estimationData.budget = parseFloat(budget);
+    }
+    
+    // Make API request to estimate salary
+    fetch('/api/estimate_salary', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(estimationData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('loadingEstimation').classList.add('hidden');
+        
+        if (data.success) {
+            // Show estimation results
+            document.getElementById('estimationTitle').textContent = 
+                `${jobTitle} in ${location} (${experienceLevel.replace('_', ' ')})`;
+            
+            // Format currency
+            const formatter = new Intl.NumberFormat('en-ZA', {
+                style: 'currency',
+                currency: 'ZAR',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            });
+            
+            document.getElementById('predictedSalary').textContent = 
+                formatter.format(data.prediction.predicted_annual_salary);
+            
+            document.getElementById('salaryRange').textContent = 
+                `${formatter.format(data.prediction.predicted_range[0])} - ${formatter.format(data.prediction.predicted_range[1])}`;
+            
+            if (data.prediction.market_insights) {
+            document.getElementById('marketInsights').textContent = data.prediction.market_insights;
+            } else {
+             // Generate a basic insight if none provided
+            const insight = `The market for ${jobTitle} roles in ${location} with ${experienceLevel.replace('_', ' ').toLowerCase()} experience shows competitive salary ranges.`;
+            document.getElementById('marketInsights').textContent = insight;
+            }
+            
+            // Show competitiveness analysis if available
+            if (data.competitiveness_analysis) {
+                // Create a formatted message based on the competitiveness analysis properties
+                const analysis = data.competitiveness_analysis;
+                let competitivenessMessage = '';
+                
+                if (analysis.flag) {
+                    competitivenessMessage = analysis.flag;
+                    if (analysis.recommendation) {
+                        competitivenessMessage += `. ${analysis.recommendation}`;
+                    }
+                } else if (analysis.level) {
+                    // Fallback: create message from level and other properties
+                    const levelMap = {
+                        "highly_competitive": "Highly Competitive",
+                        "competitive": "Competitive", 
+                        "somewhat_competitive": "Somewhat Competitive",
+                        "not_competitive": "Not Competitive"
+                    };
+                    
+                    const pctDiff = analysis.pct_vs_median ? ` (${Math.abs(analysis.pct_vs_median).toFixed(1)}% ${analysis.pct_vs_median > 0 ? 'above' : 'below'} median)` : '';
+                    
+                    competitivenessMessage = `${levelMap[analysis.level] || analysis.level}${pctDiff}. ${analysis.recommendation || ''}`;
+                } else {
+                    // Final fallback: just stringify the object
+                    competitivenessMessage = JSON.stringify(data.competitiveness_analysis);
+                }
+                
+                document.getElementById('competitivenessResult').textContent = competitivenessMessage;
+                document.getElementById('competitivenessAnalysis').classList.remove('hidden');
+                
+                // Add color coding based on competitiveness level
+                const analysisElement = document.getElementById('competitivenessAnalysis');
+                analysisElement.className = ''; // Reset classes
+                
+                if (analysis.color) {
+                    analysisElement.classList.add(`bg-${analysis.color}-900`, `border-${analysis.color}-600`, `text-${analysis.color}-200`);
+                } else if (analysis.level) {
+                    const colorMap = {
+                        "highly_competitive": "green",
+                        "competitive": "blue", 
+                        "somewhat_competitive": "yellow",
+                        "not_competitive": "red"
+                    };
+                    const color = colorMap[analysis.level] || 'gray';
+                    analysisElement.classList.add(`bg-${color}-900`, `border-${color}-600`, `text-${color}-200`);
+                } else {
+                    analysisElement.classList.add('bg-gray-900', 'border-gray-600', 'text-gray-200');
+                }
+                
+                analysisElement.classList.add('border-l-4', 'p-4');
+            } else {
+                document.getElementById('competitivenessAnalysis').classList.add('hidden');
+            }
+            
+            document.getElementById('estimationResults').classList.remove('hidden');
+        } else {
+            // Show no estimation message
+            document.getElementById('noEstimation').classList.remove('hidden');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        document.getElementById('loadingEstimation').classList.add('hidden');
+        document.getElementById('noEstimation').classList.remove('hidden');
+    });
+}
+        
+        // Improved retrain model function with better error handling
+async function retrainModel() {
+    const retrainBtn = document.getElementById('retrain-btn');
+    const originalText = retrainBtn.textContent;
+    
+    try {
+        // Show loading state
+        retrainBtn.disabled = true;
+        retrainBtn.textContent = 'Retraining...';
+        
+        console.log('Starting model retraining...');
+        
+        const response = await fetch('/api/retrain_salary_model', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+        
+        console.log('Response status:', response.status);
+        
+        // Try to parse JSON response
+        let data;
+        try {
+            data = await response.json();
+            console.log('Response data:', data);
+        } catch (parseError) {
+            console.error('Failed to parse response as JSON:', parseError);
+            throw new Error('Server returned invalid response format');
+        }
+        
+        // Handle different response statuses
+        if (response.ok) {
+            if (data.success) {
+                alert(data.message || 'Model retrained successfully!');
+                console.log('Model retrained successfully');
+            } else {
+                throw new Error(data.error || 'Unknown success=false error');
+            }
+        } else {
+            // Handle HTTP error statuses (400, 500, etc.)
+            const errorMsg = data.error || `Server error: ${response.status} ${response.statusText}`;
+            console.error('Server returned error status:', response.status, errorMsg);
+            throw new Error(errorMsg);
+        }
+        
+    } catch (error) {
+        console.error('Error during model retraining:', error);
+        
+        // Show user-friendly error message
+        let userMessage = 'Failed to retrain model. ';
+        
+        if (error.message.includes('insufficient fresh data')) {
+            userMessage += 'Not enough quality salary data was found. Please try again later when more data is available.';
+        } else if (error.message.includes('Unauthorized')) {
+            userMessage += 'You do not have permission to perform this action.';
+        } else if (error.message.includes('Network Error') || error.name === 'TypeError') {
+            userMessage += 'Network connection problem. Please check your internet connection and try again.';
+        } else {
+            userMessage += error.message;
+        }
+        
+        alert(userMessage);
+        
+    } finally {
+        // Restore button state
+        retrainBtn.disabled = false;
+        retrainBtn.textContent = originalText;
+    }
+}
+    </script>
+</body>
+</html>

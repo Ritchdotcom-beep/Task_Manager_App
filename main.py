@@ -1,16 +1,20 @@
 # main_app.py
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from salary_service import salary_predictor, competitiveness_analyzer, initialize_salary_predictor
 import os
 import requests
 import json
 from dotenv import load_dotenv
-from email_services import send_credentials_email
+from email_services import send_credentials_email, send_approval_notification, send_new_application_notification
 from datetime import datetime, timedelta
 import random
+from salary_service import retrain_salary_model
+import logging
 
 # Load environment variables
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev_key_for_testing')
@@ -22,25 +26,15 @@ PROJECT_TYPES = {
     "website_development": ["HTML", "CSS", "JavaScript", "React", "Vue", "Angular"],
     "mobile_app_development": ["Swift", "Kotlin", "React Native", "Flutter"],
     "machine_learning": ["Python", "TensorFlow", "PyTorch", "Scikit-learn"],
-    # Add other project types as needed
+    
 }
-# Add to main_app.py
+
 TASK_SERVICE_URL = os.environ.get('TASK_SERVICE_URL', 'http://localhost:5002/api')
 
 def assign_tasks(tasks):
     response = requests.post(
         f'{TASK_SERVICE_URL}/task-service/assign-tasks',
         json={'tasks': tasks},
-        headers=api_headers()
-    )
-    if response.status_code == 200:
-        return response.json()
-    return None
-
-def tasks_recommendation(task):
-    response = requests.post(  
-        f'{TASK_SERVICE_URL}/task-service/tasks_recommendation',
-        json={'tasks': task}, 
         headers=api_headers()
     )
     if response.status_code == 200:
@@ -76,7 +70,7 @@ def get_skills_for_project_type(project_type):
         print(f"Error fetching skills for project type: {str(e)}")
         return PROJECT_TYPES.get(project_type, [])
 
-# Add this function in your app.py or utils.py file
+
 def format_date(date_str, format_str='%b %d, %Y'):
     """Format a date string with the specified format"""
     if not date_str:
@@ -194,6 +188,12 @@ def get_all_employees():
     return []
 
 def create_new_employee(name, email, role, skills=None, experience=None, emp_id=None):
+    """Admin creates employee directly - RESTRICTED to HR role only"""
+    
+    # RESTRICTION: Only allow HR role creation directly
+    if role != 'human resource':
+        return False, 'Direct employee creation restricted to HR role only. Other employees must come from HR recommendations.'
+    
     data = {
         'name': name,
         'email': email,
@@ -375,6 +375,8 @@ def change_password():
             return redirect(url_for('project_manager_dashboard'))
         elif role == 'admin':
             return redirect(url_for('admin_dashboard'))
+        elif role == 'human_resource':  
+            return redirect(url_for('human_resource_dashboard'))
         else:
             return redirect(url_for('hr_dashboard'))
     
@@ -780,18 +782,250 @@ def approve_task():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def create_employee_recommendation(name, email, suggested_role, skills=None, experience=None, recommended_by=None):
+    """HR creates employee recommendation"""
+    data = {
+        'name': name,
+        'email': email,
+        'suggested_role': suggested_role,
+        'recommended_by': recommended_by,
+        'skills': skills or [],
+        'experience': experience or 0
+    }
+    
+    response = requests.post(
+        f'{EMPLOYEE_SERVICE_URL}/employee-recommendations',
+        json=data,
+        headers=api_headers()
+    )
+    
+    if response.status_code == 201:
+        return True, response.json().get('recommendation', {})
+    else:
+        error_message = response.json().get('error', 'Failed to create recommendation')
+        return False, error_message
+
+def get_employee_recommendations(status='pending_admin_review'):
+    """Get employee recommendations"""
+    response = requests.get(
+        f'{EMPLOYEE_SERVICE_URL}/employee-recommendations',
+        params={'status': status},
+        headers=api_headers()
+    )
+    
+    if response.status_code == 200:
+        return response.json().get('recommendations', [])
+    return []
+
+def process_employee_recommendation(rec_id, action, processed_by, notes=''):
+    """Admin processes recommendation (approve/reject)"""
+    data = {
+        'action': action,  # 'approve' or 'reject'
+        'processed_by': processed_by,
+        'notes': notes
+    }
+    
+    response = requests.put(
+        f'{EMPLOYEE_SERVICE_URL}/employee-recommendations/{rec_id}/process',
+        json=data,
+        headers=api_headers()
+    )
+    
+    if response.status_code in [200, 201]:
+        return True, response.json()
+    else:
+        return False, response.json().get('error', 'Failed to process recommendation')
 
 
 
-
-@app.route('/hr_dashboard')
-def hr_dashboard():
-    if 'emp_id' not in session or session['role'] != 'human resource':
+@app.route('/human_resource_dashboard')
+def human_resource_dashboard():
+    # Normalize role comparison
+    normalized_role = session.get('role', '').lower().replace(' ', '_')
+    if 'emp_id' not in session or normalized_role != 'human_resource':
+        flash('Access restricted to HR personnel', 'danger')
         return redirect(url_for('index'))
-    return render_template('hr_dashboard.html', employee=session)
+    
+    # Get employee data
+    employee_data = get_employee(session['emp_id'])
+    
+    # Get all employees
+    employees = get_all_employees()
+    
+    # Get HR's recommendations by status
+    pending_recommendations = get_employee_recommendations('pending_admin_review')
+    my_pending = [r for r in pending_recommendations if r.get('recommended_by') == session['emp_id']]
+    
+    approved_recommendations = get_employee_recommendations('approved')
+    my_approved = [r for r in approved_recommendations if r.get('recommended_by') == session['emp_id']]
+    
+    rejected_recommendations = get_employee_recommendations('rejected')
+    my_rejected = [r for r in rejected_recommendations if r.get('recommended_by') == session['emp_id']]
+    
+    # Calculate HR stats
+    hr_stats = {
+        'total_employees': len(employees),
+        'tech_employees': len([e for e in employees if e.get('role') and (
+            'developer' in e['role'].lower() or 
+            'engineer' in e['role'].lower() or
+            'data' in e['role'].lower()
+        )]),
+        'avg_success_rate': sum(e.get('success_rate', 0) for e in employees) / len(employees) if employees else 0,
+        'pending_recommendations': len(my_pending),
+        'approved_recommendations': len(my_approved),
+        'rejected_recommendations': len(my_rejected),
+        'role_distribution': {},
+        'top_performers': sorted(
+            [e for e in employees if e.get('success_rate', 0) > 0],
+            key=lambda x: x.get('success_rate', 0),
+            reverse=True
+        )[:5]
+    }
+    
+    # Count roles
+    for employee in employees:
+        role = employee.get('role', 'Unknown')
+        hr_stats['role_distribution'][role] = hr_stats['role_distribution'].get(role, 0) + 1
+    
+    # Common job titles and locations for the form
+    common_job_titles = [
+        "data scientist", "data analyst", "software developer", 
+        "software engineer", "devops engineer", "machine learning engineer",
+        "product manager", "ui/ux designer", "backend developer",
+        "full stack developer", "frontend developer"
+    ]
+    
+    common_locations = ["cape town", "johannesburg", "durban", "pretoria"]
+    experience_levels = ["LESS_THAN_ONE", "ONE_TO_THREE", "FOUR_TO_SIX", "SEVEN_TO_NINE", "TEN_PLUS"]
+    
+    return render_template(
+        'human_resource_dashboard.html',
+        employee=employee_data,
+        employees=employees,
+        hr_stats=hr_stats,
+        job_titles=common_job_titles,
+        locations=common_locations,
+        experience_levels=experience_levels,
+        my_pending_recommendations=my_pending,
+        my_approved_recommendations=my_approved,
+        my_rejected_recommendations=my_rejected,
+        format_date=format_date
+    )
+
+
+def get_pending_employees():
+    """Get all employees with pending approval status"""
+    response = requests.get(
+    f'{EMPLOYEE_SERVICE_URL}/employees/pending',
+    headers=api_headers()
+    )
+    if response.status_code == 200:
+        return response.json().get('employees', [])
+    return []
+
+def approve_employee(emp_id, role, approved_by):
+    """Approve an employee and assign their system role"""
+    data = {
+        'status': 'approved',
+        'role': role,
+        'approved_by': approved_by,
+        'approved_at': datetime.now().isoformat()
+    }
+    
+    response = requests.put(
+        f'{EMPLOYEE_SERVICE_URL}/employees/{emp_id}/approve',
+        json=data,
+        headers=api_headers()
+    )
+    
+    if response.status_code == 200:
+        return response.json()
+    return None
+
+def reject_employee(emp_id, reason, rejected_by):
+    """Reject an employee application"""
+    data = {
+        'status': 'rejected',
+        'rejection_reason': reason,
+        'rejected_by': rejected_by,
+        'rejected_at': datetime.now().isoformat()
+    }
+    
+    response = requests.put(
+        f'{EMPLOYEE_SERVICE_URL}/employees/{emp_id}/reject',
+        json=data,
+        headers=api_headers()
+    )
+    
+    return response.status_code == 200
+
+
+@app.route('/hr/create_employee', methods=['GET', 'POST'])
+def hr_create_employee():
+    """HR creates employee recommendation (forwarded to admin)"""
+    if 'emp_id' not in session or session['role'] != 'human resource':
+        flash('Unauthorized access')
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        name = request.form.get('name')
+        email = request.form.get('email')
+        suggested_role = request.form.get('requested_role')
+        
+        # Get skills as a list from the comma-separated input
+        skills_input = request.form.get('skills', '').strip()
+        skills = [skill.strip() for skill in skills_input.split(',')] if skills_input else []
+        
+        # Get experience as an integer
+        experience_input = request.form.get('experience', '').strip()
+        experience = int(experience_input) if experience_input and experience_input.isdigit() else 0
+        
+        # Create employee recommendation
+        success, result = create_employee_recommendation(
+            name=name,
+            email=email,
+            suggested_role=suggested_role,
+            skills=skills,
+            experience=experience,
+            recommended_by=session['emp_id']
+        )
+        
+        if not success:
+            flash(f'Failed to submit employee recommendation: {result}', 'danger')
+        else:
+            flash(f'Employee recommendation submitted for {name}. Forwarded to admin for approval.', 'success')
+            
+            # Notify all admins about the new recommendation
+            try:
+                # Get all admin users
+                all_employees = get_all_employees()
+                admin_emails = [emp['email'] for emp in all_employees if emp.get('role') == 'admin']
+                
+                # Send notification emails to admins
+                for admin_email in admin_emails:
+                    send_new_application_notification(admin_email, name, email, suggested_role)
+            except Exception as e:
+                print(f"Failed to send admin notifications: {str(e)}")
+        
+        return redirect(url_for('human_resource_dashboard'))
+    # Get project types for skill suggestions
+    project_types, project_type_details = get_project_types()
+    all_skills = []
+    for skills_list in project_type_details.values():
+        all_skills.extend(skills_list)
+    # Remove duplicates while preserving order
+    unique_skills = list(dict.fromkeys(all_skills))
+    
+    # Available roles that can be recommended
+    available_roles = ['developer', 'project manager', 'data analyst', 'devops engineer']
+    
+    return render_template('hr_create_employee.html', 
+                         skills=unique_skills, 
+                         available_roles=available_roles)
 
 @app.route('/admin/create_employee', methods=['GET', 'POST'])
 def create_employee():
+    """Admin creates HR employee directly (restricted to HR role only)"""
     if 'emp_id' not in session or session['role'] != 'admin':
         flash('Unauthorized access')
         return redirect(url_for('index'))
@@ -802,6 +1036,11 @@ def create_employee():
         name = request.form.get('name')
         email = request.form.get('email')
         role = request.form.get('role')
+        
+        # Validate that only HR role can be created directly
+        if role != 'human resource':
+            flash('You can only create HR employees directly. Other employees must come from HR recommendations.', 'danger')
+            return redirect(url_for('create_employee'))
         
         # Get skills as a list from the comma-separated input
         skills_input = request.form.get('skills', '').strip()
@@ -822,14 +1061,13 @@ def create_employee():
         )
         
         if not success:
-            flash(f'Failed to create employee: {result}')
+            flash(f'Failed to create employee: {result}', 'danger')
         else:
             # Get the assigned employee ID for the success message
             assigned_emp_id = result if isinstance(result, str) else emp_id
-            flash(f'Employee created with ID: {assigned_emp_id}. Credentials sent via email.')
+            flash(f'HR Employee created with ID: {assigned_emp_id}. Credentials sent via email.', 'success')
         
         return redirect(url_for('admin_dashboard'))
-    
     # Get project types for skill suggestions
     project_types, project_type_details = get_project_types()
     all_skills = []
@@ -838,7 +1076,13 @@ def create_employee():
     # Remove duplicates while preserving order
     unique_skills = list(dict.fromkeys(all_skills))
     
-    return render_template('create_employee.html', skills=unique_skills)
+    # Only allow HR role for direct creation
+    available_roles = ['human resource']
+    
+    return render_template('create_employee.html', 
+                         skills=unique_skills, 
+                         available_roles=available_roles,
+                         hr_only=True)  # Flag to show restriction message
 
 @app.route('/admin/edit_employee/<emp_id>', methods=['GET', 'POST'])
 def edit_employee(emp_id):
@@ -888,15 +1132,148 @@ def admin_delete_employee(emp_id):
     
     return redirect(url_for('admin_dashboard'))
 
+
 @app.route('/admin_dashboard')
 def admin_dashboard():
     if 'emp_id' not in session or session['role'] != 'admin':
         return redirect(url_for('index'))
     
     # Get all employees from API
-    employees = get_all_employees()
+    all_employees = get_all_employees()
     
-    return render_template('admin_dashboard.html', employees=employees, current_user=session)
+    # Get pending employee recommendations
+    pending_recommendations = get_employee_recommendations('pending_admin_review')
+    
+    # Get recently processed recommendations
+    recent_processed = get_employee_recommendations('approved') + get_employee_recommendations('rejected')
+    # Sort by processed date and take last 10
+    recent_processed.sort(key=lambda x: x.get('processed_at', ''), reverse=True)
+    recent_processed = recent_processed[:10]
+    
+    return render_template('admin_dashboard.html', 
+                         employees=all_employees, 
+                         pending_recommendations=pending_recommendations,
+                         recent_processed=recent_processed,
+                         current_user=session)
+
+
+@app.route('/admin/process_recommendation/<int:rec_id>', methods=['POST'])
+def admin_process_recommendation(rec_id):
+    """Admin processes employee recommendation"""
+    if 'emp_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
+    
+    data = request.json
+    action = data.get('action')  # 'approve' or 'reject'
+    notes = data.get('notes', '')
+    
+    if action not in ['approve', 'reject']:
+        return jsonify({'success': False, 'error': 'Invalid action'}), 400
+    
+    # Process the recommendation
+    success, result = process_employee_recommendation(rec_id, action, session['emp_id'], notes)
+    
+    if not success:
+        return jsonify({'success': False, 'error': result}), 500
+    
+    if action == 'approve':
+        try:
+            # Send approval email with credentials if employee was created
+            employee_data = result.get('employee', {})
+            if employee_data:
+                message = f'Employee recommendation approved. Employee created with ID: {employee_data.get("emp_id")} and credentials sent via email.'
+            else:
+                message = 'Employee recommendation approved.'
+                
+            return jsonify({
+                'success': True, 
+                'message': message,
+                'employee': employee_data
+            })
+            
+        except Exception as e:
+            # Employee was approved but email might have failed
+            return jsonify({
+                'success': True, 
+                'message': f'Employee recommendation approved but email notification failed: {str(e)}'
+            })
+    else:
+        return jsonify({
+            'success': True, 
+            'message': 'Employee recommendation rejected.'
+        })
+
+# NEW: Route to view recommendation details
+@app.route('/admin/recommendation/<int:rec_id>')
+def view_recommendation(rec_id):
+    """View detailed recommendation"""
+    if 'emp_id' not in session or session['role'] != 'admin':
+        flash('Unauthorized access', 'danger')
+        return redirect(url_for('index'))
+    
+    try:
+        response = requests.get(
+            f'{EMPLOYEE_SERVICE_URL}/employee-recommendations/{rec_id}',
+            headers=api_headers()
+        )
+        
+        if response.status_code == 200:
+            recommendation = response.json().get('recommendation', {})
+            return render_template('recommendation_details.html', recommendation=recommendation)
+        else:
+            flash('Recommendation not found', 'danger')
+            return redirect(url_for('admin_dashboard'))
+    
+    except Exception as e:
+        flash(f'Error retrieving recommendation: {str(e)}', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+
+
+@app.route('/admin/approve_employee/<emp_id>', methods=['POST'])
+def admin_approve_employee(emp_id):
+    """Admin approves employee and assigns system role"""
+    if 'emp_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
+    
+    data = request.json
+    assigned_role = data.get('role')
+    
+    if not assigned_role:
+        return jsonify({'success': False, 'error': 'Role is required'}), 400
+    
+    # Approve the employee
+    result = approve_employee(emp_id, assigned_role, session['emp_id'])
+    
+    if not result:
+        return jsonify({'success': False, 'error': 'Failed to approve employee'}), 500
+    
+    try:
+        # Send approval email with credentials
+        employee_data = result.get('employee', {})
+        temp_password = result.get('temp_password', 'defaultpass123')
+        
+        send_approval_notification(
+            email=employee_data.get('email'),
+            name=employee_data.get('name'),
+            emp_id=emp_id,
+            role=assigned_role,
+            temp_password=temp_password
+        )
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Employee approved as {assigned_role} and credentials sent via email'
+        })
+        
+    except Exception as e:
+        # Employee was approved but email failed
+        return jsonify({
+            'success': True, 
+            'message': f'Employee approved as {assigned_role} but failed to send email: {str(e)}'
+        })
+
+
 @app.route('/admin/update_metrics/<emp_id>', methods=['POST'])
 def update_metrics(emp_id):
     if 'emp_id' not in session or session['role'] != 'admin':
@@ -921,7 +1298,6 @@ def update_metrics(emp_id):
     
     return jsonify({'success': True})
 
-# Add this endpoint to main_app.py - ensure it is placed before the 'if __name__ == '__main__':' line
 
 @app.route('/api/create_task', methods=['POST'])
 def create_task():
@@ -1167,48 +1543,6 @@ def get_assignment_recommendation():
     
     # Get recommendation without persistence
     try:
-        result = tasks_recommendation(tasks)  # This will call the recommendation endpoint
-        
-        if not result:
-            return jsonify({
-                'success': False, 
-                'error': 'Failed to get recommendation - result is None'
-            }), 500
-        
-        if 'success' not in result or not result['success']:
-            return jsonify({
-                'success': False, 
-                'error': result.get('error', 'Failed to get recommendation')
-            }), 500
-            
-        return jsonify({
-            'success': True,
-            'recommendations': result.get('assignments', {}).get(task_data['task_id'])
-        })
-    except Exception as e:
-        import traceback
-        print(f"Error in get_assignment_recommendation: {str(e)}")
-        print(traceback.format_exc())
-        return jsonify({
-            'success': False,
-            'error': f'Exception: {str(e)}'
-        }), 500
-
-@app.route('/api/get_assignment', methods=['POST'])
-def get_assignment():
-    """Get assignment recommendation for a task without saving it"""
-    if 'emp_id' not in session or session.get('role') != 'project manager':
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
-        
-    task_data = request.json
-    tasks = [task_data]
-    
-    # Get skills for project type if not provided
-    if 'skills' not in task_data or not task_data['skills']:
-        task_data['skills'] = get_skills_for_project_type(task_data['project_type'])
-    
-    # Get recommendation without persistence
-    try:
         result = assign_tasks(tasks)
         
         if not result:
@@ -1342,6 +1676,98 @@ def get_all_tasks():
             'error': str(e)
         }), 500
 
+
+@app.route('/salary_estimator')
+def salary_estimator():
+    """Salary estimation page for HR"""
+    if 'emp_id' not in session or session['role'] != 'human resource':
+        flash('Access restricted to HR personnel', 'danger')
+        return redirect(url_for('index'))
+    
+    # Common job titles and locations for the form
+    common_job_titles = [
+        "data scientist", "data analyst", "software developer", 
+        "software engineer", "devops engineer", "machine learning engineer",
+        "product manager", "ui/ux designer", "backend developer",
+        "full stack developer", "frontend developer"
+    ]
+    
+    common_locations = ["cape town", "johannesburg", "durban", "pretoria"]
+    experience_levels = ["LESS_THAN_ONE", "ONE_TO_THREE", "FOUR_TO_SIX", "SEVEN_TO_NINE", "TEN_PLUS"]
+    
+    return render_template(
+        'salary_estimator.html',
+        job_titles=common_job_titles,
+        locations=common_locations,
+        experience_levels=experience_levels
+    )
+
+@app.route('/api/estimate_salary', methods=['POST'])
+def api_estimate_salary():
+    """API endpoint for salary estimation"""
+    if 'emp_id' not in session or session['role'] != 'human resource':
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    
+    try:
+        data = request.json
+        job_title = data.get('job_title')
+        location = data.get('location')
+        experience_level = data.get('experience_level')
+        budget = data.get('budget')
+        
+        if not all([job_title, location, experience_level]):
+            return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
+        
+        # Get salary prediction
+        prediction = salary_predictor.predict_salary(job_title, location, experience_level)
+        
+        result = {
+            'success': True,
+            'prediction': prediction
+        }
+        
+        # Add competitiveness analysis if budget is provided
+        if budget:
+            try:
+                budget = float(budget)
+                analysis = competitiveness_analyzer.analyze_competitiveness(
+                    prediction['predicted_annual_salary'],
+                    prediction['predicted_range'],
+                    budget
+                )
+                result['competitiveness_analysis'] = analysis
+            except ValueError:
+                # If budget is not a valid number, skip the analysis
+                pass
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/retrain_salary_model', methods=['POST'])
+def api_retrain_salary_model():
+    """API endpoint to retrain the salary prediction model"""
+    if 'emp_id' not in session or session['role'] != 'human resource':
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+        
+    try:
+        # Use the new retrain function that forces fresh data collection
+        success = retrain_salary_model()
+        if success:
+            return jsonify({
+                'success': True, 
+                'message': 'Salary model retrained successfully with fresh data'
+            })
+        else:
+            return jsonify({
+                'success': False, 
+                'error': 'Failed to retrain model - insufficient fresh data collected'
+            }), 500
+    except Exception as e:
+        logger.error(f"Error during model retraining: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+        
 # Add a jinja template filter for formatting dates
 @app.template_filter('datetime')
 def format_datetime(value, format='%B %d, %Y %I:%M %p'):
