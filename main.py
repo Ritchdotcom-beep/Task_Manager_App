@@ -1,7 +1,7 @@
 # main_app.py
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
-from salary_service import salary_predictor, competitiveness_analyzer, initialize_salary_predictor
+from salary_service import get_salary_predictor, get_competitiveness_analyzer, initialize_salary_predictor, retrain_salary_model, initialize_salary_predictor
 import os
 import requests
 import json
@@ -9,11 +9,11 @@ from dotenv import load_dotenv
 from email_services import send_credentials_email, send_approval_notification, send_new_application_notification
 from datetime import datetime, timedelta
 import random
-from salary_service import retrain_salary_model
 import logging
 
 # Load environment variables
 load_dotenv()
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -105,22 +105,6 @@ def format_date(date_str, format_str='%b %d, %Y'):
         print(f"Error formatting date: {str(e)}")
         return str(date_str)  # Return original as fallback
 
-def get_developer_tasks(emp_id):
-    try:
-        response = requests.get(
-            f'{request.host_url.rstrip("/")}/api/task-service/tasks',
-            params={'assignee': emp_id},
-            headers=api_headers()
-        )
-        
-        if response.status_code != 200:
-            print(f"Error fetching tasks: {response.text}")
-            return []
-        
-        return response.json().get('tasks', [])
-    except Exception as e:
-        print(f"Exception fetching tasks: {str(e)}")
-        return []
 
 def get_developer_tasks(emp_id):
     """Get all tasks assigned to a specific developer"""

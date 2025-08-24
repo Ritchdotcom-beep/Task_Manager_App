@@ -580,244 +580,600 @@
     </footer>
 
     <script>
-        // Global variables for retraining progress
-        let retrainingInProgress = false;
-        let progressUpdateInterval;
-        
-        // Employee search and filter functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            const searchInput = document.getElementById('employeeSearch');
-            const roleFilter = document.getElementById('roleFilter');
-            const employeeRows = document.querySelectorAll('.employee-row');
+let retrainingInProgress = false;
+let progressUpdateInterval;
+let retrainingAbortController = null;
 
-            function filterEmployees() {
-                const searchTerm = searchInput.value.toLowerCase();
-                const selectedRole = roleFilter.value;
+// Employee search and filter functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('employeeSearch');
+    const roleFilter = document.getElementById('roleFilter');
+    const employeeRows = document.querySelectorAll('.employee-row');
 
-                employeeRows.forEach(row => {
-                    const name = row.dataset.name;
-                    const role = row.dataset.role;
-                    
-                    const matchesSearch = name.includes(searchTerm);
-                    const matchesRole = !selectedRole || role === selectedRole;
-                    
-                    if (matchesSearch && matchesRole) {
-                        row.style.display = '';
-                    } else {
-                        row.style.display = 'none';
-                    }
-                });
-            }
+    function filterEmployees() {
+        const searchTerm = searchInput.value.toLowerCase();
+        const selectedRole = roleFilter.value;
 
-            searchInput.addEventListener('input', filterEmployees);
-            roleFilter.addEventListener('change', filterEmployees);
-        });
-
-        // Progress simulation functions
-        function updateProgressStep(stepId, status) {
-            const step = document.getElementById(stepId);
-            const icon = step.querySelector('i');
-            const text = step.querySelector('span');
+        employeeRows.forEach(row => {
+            const name = row.dataset.name;
+            const role = row.dataset.role;
             
-            if (status === 'active') {
-                icon.className = 'fas fa-spinner fa-spin text-blue-400';
-                text.classList.remove('text-gray-400');
-                text.classList.add('text-blue-300');
-            } else if (status === 'completed') {
-                icon.className = 'fas fa-check-circle text-green-400';
-                text.classList.remove('text-gray-400', 'text-blue-300');
-                text.classList.add('text-green-300');
-            } else if (status === 'error') {
-                icon.className = 'fas fa-exclamation-circle text-red-400';
-                text.classList.remove('text-gray-400', 'text-blue-300');
-                text.classList.add('text-red-300');
+            const matchesSearch = name.includes(searchTerm);
+            const matchesRole = !selectedRole || role === selectedRole;
+            
+            if (matchesSearch && matchesRole) {
+                row.style.display = '';
             } else {
-                // reset
-                icon.className = 'fas fa-circle text-gray-500';
-                text.classList.remove('text-blue-300', 'text-green-300', 'text-red-300');
-                text.classList.add('text-gray-400');
+                row.style.display = 'none';
             }
-        }
+        });
+    }
 
-        function updateProgress(percentage, stage, stepId = null) {
-            const progressBar = document.getElementById('progressBar');
-            const progressPercent = document.getElementById('progressPercent');
-            const progressStage = document.getElementById('progressStage');
-            
-            progressBar.style.width = `${percentage}%`;
-            progressPercent.textContent = `${percentage}%`;
-            progressStage.textContent = stage;
-            
-            if (stepId) {
-                updateProgressStep(stepId, 'active');
+    if (searchInput) searchInput.addEventListener('input', filterEmployees);
+    if (roleFilter) roleFilter.addEventListener('change', filterEmployees);
+});
+
+function updateProgressStep(stepId, status) {
+    const step = document.getElementById(stepId);
+    if (!step) return;
+    
+    const icon = step.querySelector('i');
+    const text = step.querySelector('span');
+    
+    if (status === 'active') {
+        icon.className = 'fas fa-spinner fa-spin text-blue-400';
+        text.classList.remove('text-gray-400');
+        text.classList.add('text-blue-300');
+    } else if (status === 'completed') {
+        icon.className = 'fas fa-check-circle text-green-400';
+        text.classList.remove('text-gray-400', 'text-blue-300');
+        text.classList.add('text-green-300');
+    } else if (status === 'error') {
+        icon.className = 'fas fa-exclamation-circle text-red-400';
+        text.classList.remove('text-gray-400', 'text-blue-300');
+        text.classList.add('text-red-300');
+    } else {
+        // reset
+        icon.className = 'fas fa-circle text-gray-500';
+        text.classList.remove('text-blue-300', 'text-green-300', 'text-red-300');
+        text.classList.add('text-gray-400');
+    }
+}
+
+function updateProgress(percentage, stage, stepId = null) {
+    const progressBar = document.getElementById('progressBar');
+    const progressPercent = document.getElementById('progressPercent');
+    const progressStage = document.getElementById('progressStage');
+    
+    if (progressBar) progressBar.style.width = `${percentage}%`;
+    if (progressPercent) progressPercent.textContent = `${percentage}%`;
+    if (progressStage) progressStage.textContent = stage;
+    
+    if (stepId) {
+        updateProgressStep(stepId, 'active');
+    }
+}
+
+function simulateRealisticProgress(apiPromise) {
+    return new Promise((resolve, reject) => {
+        let currentStepIndex = 0;
+        let currentProgress = 0;
+        let apiCompleted = false;
+        let apiResult = null;
+        let apiError = null;
+        let startTime = Date.now();
+
+        // REALISTIC timing based on your actual process:
+        // - Initialization: 5 seconds
+        // - Data Collection: ~4.5 minutes (270 seconds) - this is the bulk of the work
+        // - Quality Assessment: 15 seconds  
+        // - Model Training: 10 seconds
+        // - Saving: 5 seconds
+        // Total: ~5 minutes (305 seconds)
+        
+        const steps = [
+            { 
+                id: 'step-init', 
+                stage: 'Initializing data collection...', 
+                duration: 5000, 
+                targetProgress: 2 
+            },
+            { 
+                id: 'step-collect', 
+                stage: 'Collecting salary data from APIs (31 combinations in 6 batches)...', 
+                duration: 270000, // 4.5 minutes - matches your actual timing
+                targetProgress: 85 // Most of the work happens here
+            },
+            { 
+                id: 'step-quality', 
+                stage: 'Quality assessment and data cleaning...', 
+                duration: 15000, 
+                targetProgress: 92 
+            },
+            { 
+                id: 'step-train', 
+                stage: 'Training machine learning model...', 
+                duration: 10000, 
+                targetProgress: 98 
+            },
+            { 
+                id: 'step-save', 
+                stage: 'Saving updated model...', 
+                duration: 5000, 
+                targetProgress: 100 
             }
-        }
+        ];
 
-        function simulateRetrainingProgress() {
-            let progress = 0;
-            let currentStep = 0;
-            const steps = [
-                { id: 'step-init', stage: 'Initializing data collection...', duration: 3000, progress: 15 },
-                { id: 'step-collect', stage: 'Collecting salary data from APIs...', duration: 45000, progress: 40 },
-                { id: 'step-quality', stage: 'Quality assessment and cleaning...', duration: 15000, progress: 65 },
-                { id: 'step-train', stage: 'Training machine learning model...', duration: 30000, progress: 90 },
-                { id: 'step-save', stage: 'Saving updated model...', duration: 5000, progress: 100 }
-            ];
+        // Track API completion
+        apiPromise
+            .then(result => {
+                console.log('API completed successfully');
+                apiCompleted = true;
+                apiResult = result;
+            })
+            .catch(error => {
+                console.error('API failed:', error);
+                apiCompleted = true;
+                apiError = error;
+            });
+
+        function updateProgressForStep(step, stepStartTime, stepIndex) {
+            if (!retrainingInProgress) {
+                reject(new Error('Retraining was cancelled'));
+                return;
+            }
+
+            const elapsed = Date.now() - stepStartTime;
+            const stepProgress = Math.min(elapsed / step.duration, 1.0);
             
-            function runStep(stepIndex) {
-                if (stepIndex >= steps.length) return;
-                
-                const step = steps[stepIndex];
-                updateProgress(step.progress, step.stage, step.id);
-                
+            // Calculate progress within this step
+            const prevStepProgress = stepIndex === 0 ? 0 : steps[stepIndex - 1].targetProgress;
+            const progressRange = step.targetProgress - prevStepProgress;
+            const currentStepProgress = prevStepProgress + (progressRange * stepProgress);
+            
+            currentProgress = Math.min(currentStepProgress, step.targetProgress);
+            
+            // Update the UI
+            updateProgress(Math.round(currentProgress), step.stage, step.id);
+
+            // For the data collection step, show more detailed progress
+            if (step.id === 'step-collect') {
+                const totalCombinations = 31;
+                const estimatedCurrentCombination = Math.floor(stepProgress * totalCombinations);
+                const detailedStage = `Collecting salary data from APIs (${Math.min(estimatedCurrentCombination, totalCombinations)}/31 combinations)...`;
+                updateProgress(Math.round(currentProgress), detailedStage, step.id);
+            }
+            
+            // Check if step should complete
+            const shouldComplete = elapsed >= step.duration || 
+                (stepIndex === steps.length - 1 && apiCompleted && stepProgress > 0.8);
+
+            if (shouldComplete) {
                 // Mark previous steps as completed
                 for (let i = 0; i < stepIndex; i++) {
                     updateProgressStep(steps[i].id, 'completed');
                 }
                 
-                setTimeout(() => {
-                    updateProgressStep(step.id, 'completed');
-                    if (stepIndex < steps.length - 1) {
-                        runStep(stepIndex + 1);
-                    } else {
-                        finishRetraining();
-                    }
-                }, step.duration);
+                // Move to next step
+                currentStepIndex++;
+                if (currentStepIndex < steps.length) {
+                    setTimeout(() => runStep(currentStepIndex), 500);
+                } else {
+                    // All steps completed
+                    finalizeProgress();
+                }
+            } else {
+                // Continue this step
+                setTimeout(() => updateProgressForStep(step, stepStartTime, stepIndex), 1000); // Update every second
             }
-            
-            runStep(0);
         }
 
-        function finishRetraining() {
-            setTimeout(() => {
-                hideRetrainProgressModal();
-                alert('Model retraining completed successfully! The salary estimator now uses the latest market data.');
-                
-                // Re-enable the retrain button
-                const retrainButton = document.getElementById('retrainButton');
-                retrainButton.disabled = false;
-                retrainButton.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Retrain Model';
-                retrainingInProgress = false;
-            }, 1000);
-        }
-
-        function retrainModel() {
-            if (retrainingInProgress) {
+        function runStep(stepIndex) {
+            if (!retrainingInProgress) {
+                reject(new Error('Retraining was cancelled'));
                 return;
             }
+
+            if (stepIndex >= steps.length) {
+                finalizeProgress();
+                return;
+            }
+
+            const step = steps[stepIndex];
+            const stepStartTime = Date.now();
             
-            retrainingInProgress = true;
+            console.log(`Starting step ${stepIndex + 1}: ${step.stage}`);
             
-            // Disable the retrain button
-            const retrainButton = document.getElementById('retrainButton');
-            retrainButton.disabled = true;
-            retrainButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Retraining...';
-            
-            // Show progress modal
-            showRetrainProgressModal();
-            
-            // Start the actual retraining process
-            fetch('/api/retrain_salary_model', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Start progress simulation
-                    simulateRetrainingProgress();
-                } else {
-                    hideRetrainProgressModal();
-                    alert('Failed to start model retraining: ' + (data.error || 'Unknown error'));
-                    resetRetrainButton();
-                }
-            })
-            .catch(error => {
-                hideRetrainProgressModal();
-                alert('Error starting model retraining: ' + error.message);
-                resetRetrainButton();
-            });
+            // Start updating this step
+            updateProgressForStep(step, stepStartTime, stepIndex);
         }
 
-        function resetRetrainButton() {
-            const retrainButton = document.getElementById('retrainButton');
+        function finalizeProgress() {
+            if (!apiCompleted) {
+                // API is still running, wait for it
+                console.log('Steps completed, waiting for API to finish...');
+                updateProgress(98, 'Finalizing model training...', 'step-save');
+                
+                const waitForApi = setInterval(() => {
+                    if (!retrainingInProgress) {
+                        clearInterval(waitForApi);
+                        reject(new Error('Retraining was cancelled'));
+                        return;
+                    }
+
+                    if (apiCompleted) {
+                        clearInterval(waitForApi);
+                        completeProcess();
+                    }
+                }, 1000);
+            } else {
+                completeProcess();
+            }
+        }
+
+        function completeProcess() {
+            if (apiError) {
+                // Mark current step as error
+                if (currentStepIndex < steps.length) {
+                    updateProgressStep(steps[currentStepIndex].id, 'error');
+                }
+                reject(apiError);
+            } else {
+                // Complete all steps
+                steps.forEach(step => updateProgressStep(step.id, 'completed'));
+                updateProgress(100, 'Model retraining completed successfully!');
+                
+                const totalTime = Math.round((Date.now() - startTime) / 1000);
+                console.log(`Total retraining time: ${totalTime} seconds`);
+                
+                resolve(apiResult);
+            }
+        }
+
+        // Start the first step
+        runStep(0);
+    });
+}
+
+async function retrainModel() {
+    if (retrainingInProgress) {
+        console.log('Retraining already in progress');
+        return;
+    }
+    
+    try {
+        retrainingInProgress = true;
+        
+        // Disable the retrain button and show loading state
+        const retrainButton = document.getElementById('retrainButton');
+        if (retrainButton) {
+            retrainButton.disabled = true;
+            retrainButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Starting Retraining...';
+        }
+        
+        // Show progress modal
+        showRetrainProgressModal();
+        
+        // Reset all progress steps first
+        const stepIds = ['step-init', 'step-collect', 'step-quality', 'step-train', 'step-save'];
+        stepIds.forEach(stepId => updateProgressStep(stepId, 'reset'));
+        updateProgress(0, 'Preparing to start model retraining...');
+        
+        // Create abort controller for the API request
+        retrainingAbortController = new AbortController();
+        
+        // Start API call
+        console.log('Starting API call for model retraining...');
+        const startTime = Date.now();
+        
+        const apiPromise = fetch('/api/retrain_salary_model', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            signal: retrainingAbortController.signal
+        })
+        .then(response => {
+            const elapsed = Math.round((Date.now() - startTime) / 1000);
+            console.log(`API response received after ${elapsed} seconds. Status: ${response.status}`);
+            
+            if (!response.ok) {
+                throw new Error(`API request failed with status ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const elapsed = Math.round((Date.now() - startTime) / 1000);
+            console.log(`API completed successfully after ${elapsed} seconds:`, data);
+            
+            if (!data.success) {
+                throw new Error(data.error || 'API returned unsuccessful response');
+            }
+            return data;
+        });
+        
+        // Run realistic progress simulation
+        await simulateRealisticProgress(apiPromise);
+        
+        // If we get here, everything completed successfully
+        finishRetraining(true, 'Model retraining completed successfully! The salary estimator now uses the latest market data.');
+        
+    } catch (error) {
+        console.error('Retraining error:', error);
+        
+        if (error.name === 'AbortError') {
+            finishRetraining(false, 'Retraining was cancelled by user.');
+        } else {
+            finishRetraining(false, 'Failed to retrain model: ' + error.message);
+        }
+    }
+}
+
+
+    function finishRetraining(success, message) {
+        // Update progress to 100% if successful
+        if (success) {
+            updateProgress(100, 'Retraining completed successfully!');
+        }
+        
+        setTimeout(() => {
+            hideRetrainProgressModal();
+            
+            if (success) {
+                // Show success message
+                showNotification(message, 'success');
+            } else {
+                // Show error message
+                showNotification(message, 'error');
+            }
+            
+            // Reset the retrain button
+            resetRetrainButton();
+        }, 1000);
+    }
+
+    function resetRetrainButton() {
+        const retrainButton = document.getElementById('retrainButton');
+        if (retrainButton) {
             retrainButton.disabled = false;
             retrainButton.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Retrain Model';
-            retrainingInProgress = false;
         }
+        retrainingInProgress = false;
+        retrainingAbortController = null;
+    }
 
-        function showRetrainProgressModal() {
-            const modal = document.getElementById('retrainProgressModal');
+    function showRetrainProgressModal() {
+        const modal = document.getElementById('retrainProgressModal');
+        if (modal) {
             modal.classList.remove('hidden');
             
-            // Reset progress
+            // Reset progress to initial state
             updateProgress(0, 'Initializing...');
             const steps = ['step-init', 'step-collect', 'step-quality', 'step-train', 'step-save'];
             steps.forEach(stepId => updateProgressStep(stepId, 'reset'));
+            
+            // Enable cancel button initially
+            const cancelButton = document.getElementById('cancelRetrainButton');
+            if (cancelButton) {
+                cancelButton.disabled = false;
+                cancelButton.textContent = 'Cancel';
+            }
         }
+    }
 
-        function hideRetrainProgressModal() {
-            const modal = document.getElementById('retrainProgressModal');
+    function hideRetrainProgressModal() {
+        const modal = document.getElementById('retrainProgressModal');
+        if (modal) {
             modal.classList.add('hidden');
         }
+    }
 
-        function cancelRetraining() {
-            if (confirm('Are you sure you want to cancel the retraining process?')) {
+    function cancelRetraining() {
+        if (!retrainingInProgress) {
+            hideRetrainProgressModal();
+            return;
+        }
+        
+        if (confirm('Are you sure you want to cancel the retraining process?')) {
+            retrainingInProgress = false;
+            
+            // Abort the API request if it's ongoing
+            if (retrainingAbortController) {
+                retrainingAbortController.abort();
+            }
+            
+            // Update UI to show cancellation
+            updateProgress(0, 'Cancelling...');
+            const cancelButton = document.getElementById('cancelRetrainButton');
+            if (cancelButton) {
+                cancelButton.disabled = true;
+                cancelButton.textContent = 'Cancelling...';
+            }
+            
+            // Reset everything after a short delay
+            setTimeout(() => {
                 hideRetrainProgressModal();
                 resetRetrainButton();
-                // You might want to call an API endpoint to actually cancel the process
-            }
+            }, 1500);
         }
+    }
 
-        // Salary estimation functions
-        function estimateSalary() {
-            const jobTitle = document.getElementById('jobTitle').value;
-            const location = document.getElementById('location').value;
-            const experienceLevel = document.getElementById('experienceLevel').value;
-            const budget = document.getElementById('budget').value;
-            
-            if (!jobTitle || !location || !experienceLevel) {
-                alert('Please fill in all required fields');
-                return;
-            }
-            
-            // Show loading
-            showEstimationLoading();
-            
-            const requestData = {
-                job_title: jobTitle,
-                location: location,
-                experience_level: experienceLevel
-            };
-            
-            if (budget) {
-                requestData.budget = parseFloat(budget);
-            }
-            
-            fetch('/api/estimate_salary', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                hideEstimationLoading();
-                
-                if (data.success) {
-                    displayEstimationResults(data.prediction, data.competitiveness_analysis);
-                } else {
-                    showEstimationError(data.error || 'Failed to estimate salary');
-                }
-            })
-            .catch(error => {
-                hideEstimationLoading();
-                showEstimationError('Error connecting to salary estimation service');
-            });
+    // Helper function to show notifications
+    function showNotification(message, type = 'info') {
+        // Remove any existing notifications
+        const existingNotifications = document.querySelectorAll('.custom-notification');
+        existingNotifications.forEach(notification => notification.remove());
+        
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `custom-notification fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+            type === 'success' ? 'bg-green-500 text-white' : 
+            type === 'error' ? 'bg-red-500 text-white' : 
+            'bg-blue-500 text-white'
+        }`;
+        notification.textContent = message;
+        
+        // Add to document
+        document.body.appendChild(notification);
+        
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            notification.remove();
+        }, 5000);
+    }
+
+    document.addEventListener('click', function(event) {
+        const retrainModal = document.getElementById('retrainProgressModal');
+        if (event.target === retrainModal && !retrainingInProgress) {
+            hideRetrainProgressModal();
+            resetRetrainButton();
         }
+    });
+
+    window.addEventListener('beforeunload', function(event) {
+        if (retrainingInProgress) {
+            event.preventDefault();
+            event.returnValue = 'Model retraining is in progress. Are you sure you want to leave?';
+            return 'Model retraining is in progress. Are you sure you want to leave?';
+        }
+    });
+
+
+        // Estimate salary
+    function estimateSalary() {
+    const jobTitle = document.getElementById('jobTitle').value;
+    const location = document.getElementById('location').value;
+    const experienceLevel = document.getElementById('experienceLevel').value;
+    const budget = document.getElementById('budget').value;
+    
+    if (!jobTitle || !location || !experienceLevel) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    // Show loading
+    document.getElementById('loadingEstimation').classList.remove('hidden');
+    document.getElementById('estimationResults').classList.add('hidden');
+    document.getElementById('noEstimation').classList.add('hidden');
+    
+    // Prepare estimation data
+    const estimationData = {
+        job_title: jobTitle,
+        location: location,
+        experience_level: experienceLevel
+    };
+    
+    // Add budget if provided
+    if (budget) {
+        estimationData.budget = parseFloat(budget);
+    }
+    
+    // Make API request to estimate salary
+    fetch('/api/estimate_salary', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(estimationData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('loadingEstimation').classList.add('hidden');
+        
+        if (data.success) {
+            // Show estimation results
+            document.getElementById('estimationTitle').textContent = 
+                `${jobTitle} in ${location} (${experienceLevel.replace('_', ' ')})`;
+            
+            // Format currency
+            const formatter = new Intl.NumberFormat('en-ZA', {
+                style: 'currency',
+                currency: 'ZAR',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            });
+            
+            document.getElementById('predictedSalary').textContent = 
+                formatter.format(data.prediction.predicted_annual_salary);
+            
+            document.getElementById('salaryRange').textContent = 
+                `${formatter.format(data.prediction.predicted_range[0])} - ${formatter.format(data.prediction.predicted_range[1])}`;
+            
+            if (data.prediction.market_insights) {
+            document.getElementById('marketInsights').textContent = data.prediction.market_insights;
+            } else {
+             // Generate a basic insight if none provided
+            const insight = `The market for ${jobTitle} roles in ${location} with ${experienceLevel.replace('_', ' ').toLowerCase()} experience shows competitive salary ranges.`;
+            document.getElementById('marketInsights').textContent = insight;
+            }
+            
+            // Show competitiveness analysis if available
+            if (data.competitiveness_analysis) {
+                // Create a formatted message based on the competitiveness analysis properties
+                const analysis = data.competitiveness_analysis;
+                let competitivenessMessage = '';
+                
+                if (analysis.flag) {
+                    competitivenessMessage = analysis.flag;
+                    if (analysis.recommendation) {
+                        competitivenessMessage += `. ${analysis.recommendation}`;
+                    }
+                } else if (analysis.level) {
+                    // Fallback: create message from level and other properties
+                    const levelMap = {
+                        "highly_competitive": "Highly Competitive",
+                        "competitive": "Competitive", 
+                        "somewhat_competitive": "Somewhat Competitive",
+                        "not_competitive": "Not Competitive"
+                    };
+                    
+                    const pctDiff = analysis.pct_vs_median ? ` (${Math.abs(analysis.pct_vs_median).toFixed(1)}% ${analysis.pct_vs_median > 0 ? 'above' : 'below'} median)` : '';
+                    
+                    competitivenessMessage = `${levelMap[analysis.level] || analysis.level}${pctDiff}. ${analysis.recommendation || ''}`;
+                } else {
+                    // Final fallback: just stringify the object
+                    competitivenessMessage = JSON.stringify(data.competitiveness_analysis);
+                }
+                
+                document.getElementById('competitivenessResult').textContent = competitivenessMessage;
+                document.getElementById('competitivenessAnalysis').classList.remove('hidden');
+                
+                // Add color coding based on competitiveness level
+                const analysisElement = document.getElementById('competitivenessAnalysis');
+                analysisElement.className = ''; // Reset classes
+                
+                if (analysis.color) {
+                    analysisElement.classList.add(`bg-${analysis.color}-900`, `border-${analysis.color}-600`, `text-${analysis.color}-200`);
+                } else if (analysis.level) {
+                    const colorMap = {
+                        "highly_competitive": "green",
+                        "competitive": "blue", 
+                        "somewhat_competitive": "yellow",
+                        "not_competitive": "red"
+                    };
+                    const color = colorMap[analysis.level] || 'gray';
+                    analysisElement.classList.add(`bg-${color}-900`, `border-${color}-600`, `text-${color}-200`);
+                } else {
+                    analysisElement.classList.add('bg-gray-900', 'border-gray-600', 'text-gray-200');
+                }
+                
+                analysisElement.classList.add('border-l-4', 'p-4');
+            } else {
+                document.getElementById('competitivenessAnalysis').classList.add('hidden');
+            }
+            
+            document.getElementById('estimationResults').classList.remove('hidden');
+        } else {
+            // Show no estimation message
+            document.getElementById('noEstimation').classList.remove('hidden');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        document.getElementById('loadingEstimation').classList.add('hidden');
+        document.getElementById('noEstimation').classList.remove('hidden');
+    });
+}
 
         function showEstimationLoading() {
             document.getElementById('loadingEstimation').classList.remove('hidden');

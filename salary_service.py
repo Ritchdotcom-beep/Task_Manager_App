@@ -221,13 +221,25 @@ class SalaryDataCollector:
 class SalaryPredictor:
     """Phase 1: Baseline ML Model"""
     
-    def __init__(self):
+    def __init__(self, model_path="salary_model.joblib"):
         self.model = None
         self.label_encoders = {}
         self.is_trained = False
         self.feature_columns = ['job_title', 'location', 'experience_level']
-        self.model_path = "salary_model.joblib"
+        self.model_path = model_path
         
+        # Try to load existing model on initialization
+        self._try_load_model()
+        
+    def _try_load_model(self):
+        """Try to load an existing model on initialization"""
+        if os.path.exists(self.model_path):
+            try:
+                self.load_model(self.model_path)
+                logger.info("Existing salary model loaded successfully")
+            except Exception as e:
+                logger.warning(f"Failed to load existing model: {e}")
+                
     def prepare_features(self, df):
         """Encode categorical features for ML model"""
         df_encoded = df.copy()
@@ -252,10 +264,29 @@ class SalaryPredictor:
         if len(df) < 10:
             raise ValueError("Insufficient training data. Need at least 10 data points.")
         
+        # Clean and validate salary data
+        df = df.dropna(subset=['median_salary'])
+        df = df[df['median_salary'] > 0]  # Remove invalid salaries
+        
+        if len(df) < 5:
+            raise ValueError("Insufficient valid training data after cleaning.")
+        
         # Normalize salary period (convert monthly to annual)
         df['annual_median_salary'] = df.apply(lambda row: 
             row['median_salary'] * 12 if row['salary_period'] == 'MONTH' 
             else row['median_salary'], axis=1)
+        
+        # Remove outliers (salaries beyond reasonable range)
+        Q1 = df['annual_median_salary'].quantile(0.25)
+        Q3 = df['annual_median_salary'].quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+        
+        df = df[(df['annual_median_salary'] >= lower_bound) & 
+                (df['annual_median_salary'] <= upper_bound)]
+        
+        logger.info(f"Training with {len(df)} data points after cleaning")
         
         # Prepare features
         df_encoded = self.prepare_features(df)
@@ -307,22 +338,31 @@ class SalaryPredictor:
         """Predict salary for given inputs"""
         if not self.is_trained:
             # Try to load the model if it exists
-            try:
-                self.load_model(self.model_path)
-            except:
-                raise ValueError("Model must be trained before making predictions")
+            if not self._try_load_model():
+                raise ValueError("Model must be trained before making predictions. No trained model found.")
         
         # Create input DataFrame
         input_data = pd.DataFrame([{
-            'job_title': job_title,
-            'location': location,
-            'experience_level': experience_level
+            'job_title': job_title.lower().strip(),
+            'location': location.lower().strip(),
+            'experience_level': experience_level.upper().strip()
         }])
+        
+        # Check if we have encoders for all inputs
+        for column in self.feature_columns:
+            if column not in self.label_encoders:
+                raise ValueError(f"Model not trained for feature: {column}")
         
         # Encode features
         input_encoded = self.prepare_features(input_data)
         feature_cols = [f'{col}_encoded' for col in self.feature_columns]
         X_input = input_encoded[feature_cols]
+        
+        # Check for unseen categories (encoded as -1)
+        if (X_input == -1).any().any():
+            # Handle unseen categories by using fallback predictions
+            logger.warning("Unseen category detected, using fallback prediction")
+            return self._fallback_prediction(job_title, location, experience_level)
         
         # Make prediction
         prediction = self.model.predict(X_input)[0]
@@ -330,21 +370,67 @@ class SalaryPredictor:
         # Estimate range (±20% of prediction)
         prediction_range = (prediction * 0.8, prediction * 1.2)
         
+        # Add market insights
+        insights = self._generate_market_insights(job_title, location, experience_level, prediction)
+        
         return {
             "predicted_annual_salary": round(prediction),
             "predicted_range": (round(prediction_range[0]), round(prediction_range[1])),
+            "market_insights": insights,
             "source": "ML_MODEL"
         }
+    
+    def _try_load_model(self):
+        """Try to load an existing model on initialization"""
+        if os.path.exists(self.model_path):
+            try:
+                self.load_model(self.model_path)
+                logger.info("Existing salary model loaded successfully")
+                return True
+            except Exception as e:
+                logger.warning(f"Failed to load existing model: {e}")
+                return False
+        return False
+
+    
+    def _generate_market_insights(self, job_title, location, experience_level, prediction):
+        """Generate market insights based on prediction"""
+        insights = []
+        
+        # Experience-based insights
+        if "LESS_THAN_ONE" in experience_level:
+            insights.append("Entry-level position with growth potential")
+        elif "SEVEN_TO_NINE" in experience_level or "TEN_PLUS" in experience_level:
+            insights.append("Senior-level role commanding premium salaries")
+        
+        # Location-based insights
+        if "cape town" in location.lower():
+            insights.append("Cape Town market shows competitive tech salaries")
+        elif "johannesburg" in location.lower():
+            insights.append("Johannesburg offers premium for financial and tech sectors")
+        
+        # Salary range insights
+        if prediction > 1000000:
+            insights.append("Above-average salary range for this combination")
+        elif prediction < 400000:
+            insights.append("Entry-level salary range")
+        
+        return ". ".join(insights) if insights else f"Market data for {job_title} in {location}"
     
     def save_model(self, filepath):
         """Save trained model and encoders"""
         if not self.is_trained:
             raise ValueError("No trained model to save")
         
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else '.', exist_ok=True)
+        
         model_data = {
             "model": self.model,
             "label_encoders": self.label_encoders,
-            "feature_columns": self.feature_columns
+            "feature_columns": self.feature_columns,
+            "version": "1.0",
+            "trained_at": datetime.now().isoformat()
         }
         
         joblib.dump(model_data, filepath)
@@ -352,14 +438,28 @@ class SalaryPredictor:
     
     def load_model(self, filepath):
         """Load trained model and encoders"""
-        model_data = joblib.load(filepath)
-        
-        self.model = model_data["model"]
-        self.label_encoders = model_data["label_encoders"]
-        self.feature_columns = model_data["feature_columns"]
-        self.is_trained = True
-        
-        logger.info(f"Model loaded from {filepath}")
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"Model file not found: {filepath}")
+            
+        try:
+            model_data = joblib.load(filepath)
+            
+            self.model = model_data["model"]
+            self.label_encoders = model_data["label_encoders"]
+            self.feature_columns = model_data["feature_columns"]
+            self.is_trained = True
+            
+            logger.info(f"Model loaded from {filepath}")
+            
+            # Log model info if available
+            if "trained_at" in model_data:
+                logger.info(f"Model was trained at: {model_data['trained_at']}")
+                
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to load model from {filepath}: {e}")
+            raise
 
 class CompetitivenessAnalyzer:
     """Phase 1: Basic Competitiveness Analysis"""
@@ -397,23 +497,23 @@ class CompetitivenessAnalyzer:
             recommendation = "Consider increasing budget or adjusting requirements"
         
         return {
-            "competitiveness_level": level,
+            "level": level,
             "flag": flag,
             "color": color,
-            "percentage_difference": round(pct_vs_median, 1),
+            "pct_vs_median": round(pct_vs_median, 1),
+            "recommendation": recommendation,
             "market_position": {
                 "user_budget": user_budget,
                 "market_median": predicted_salary,
                 "market_range": predicted_range,
                 "within_range": min_market <= user_budget <= max_market
             },
-            "recommendation": recommendation,
             "confidence": confidence
         }
 
 # Global instances
-salary_collector = SalaryDataCollector()
-salary_predictor = SalaryPredictor()
+salary_collector = None
+salary_predictor = None
 competitiveness_analyzer = CompetitivenessAnalyzer()
 
 def initialize_salary_predictor(force_retrain=False):
@@ -423,23 +523,41 @@ def initialize_salary_predictor(force_retrain=False):
         force_retrain (bool): If True, forces fresh data collection and retraining
                              even if a model already exists
     """
+    global salary_collector, salary_predictor
+    
     try:
+        # Initialize instances
+        salary_collector = SalaryDataCollector()
+        salary_predictor = SalaryPredictor()
+        
+        # If force_retrain is False, check if model is already loaded
+        if not force_retrain and salary_predictor.is_trained:
+            logger.info("Salary predictor model already loaded and ready")
+            return True
+        
         # If force_retrain is False, try to load existing model first
-        if not force_retrain:
+        if not force_retrain and os.path.exists(salary_predictor.model_path):
             try:
                 salary_predictor.load_model(salary_predictor.model_path)
-                logger.info("Salary predictor model loaded successfully")
+                logger.info("Salary predictor model loaded successfully from file")
                 return True
-            except:
-                logger.info("No existing model found. Will collect data and train new model...")
-        else:
-            logger.info("Force retrain requested. Collecting fresh data...")
+            except Exception as e:
+                logger.warning(f"Failed to load existing model: {e}")
+                logger.info("Will collect data and train new model...")
         
         # Collect fresh data and train model
+        if force_retrain:
+            logger.info("Force retrain requested. Collecting fresh data...")
+        else:
+            logger.info("No existing model found. Collecting data to train new model...")
+            
+        # This is where training_data gets defined
         training_data, quality_report = salary_collector.collect_strategic_data()
+            
         if len(training_data) >= 10:
             evaluation = salary_predictor.train_model(training_data)
-            logger.info(f"Salary predictor {'retrained' if force_retrain else 'trained'} successfully: R² = {evaluation['r2']:.3f}")
+            action = "retrained" if force_retrain else "trained"
+            logger.info(f"Salary predictor {action} successfully: R² = {evaluation['r2']:.3f}")
             return True
         else:
             logger.warning("Insufficient training data collected")
@@ -449,6 +567,7 @@ def initialize_salary_predictor(force_retrain=False):
         logger.error(f"Failed to initialize salary predictor: {e}")
         return False
 
+
 def retrain_salary_model():
     """Force retrain the salary prediction model with fresh data
     
@@ -457,5 +576,31 @@ def retrain_salary_model():
     logger.info("Starting forced model retraining...")
     return initialize_salary_predictor(force_retrain=True)
 
+def get_salary_predictor():
+    """Get the global salary predictor instance, initializing if necessary"""
+    global salary_predictor
+    
+    if salary_predictor is None or not salary_predictor.is_trained:
+        logger.info("Salary predictor not initialized. Initializing now...")
+        if not initialize_salary_predictor():
+            raise RuntimeError("Failed to initialize salary predictor")
+    
+    return salary_predictor
+
+def get_competitiveness_analyzer():
+    """Get the global competitiveness analyzer instance"""
+    return competitiveness_analyzer
+
 # Initialize the predictor when the module is imported (but don't force retrain)
-initialize_salary_predictor(force_retrain=False)
+
+def _safe_initialize():
+    """Safely initialize salary predictor without raising exceptions during import"""
+    try:
+        return initialize_salary_predictor(force_retrain=False)
+    except Exception as e:
+        logger.warning(f"Failed to initialize salary predictor on import: {e}")
+        logger.info("Salary predictor will be initialized on first use")
+        return False
+
+# Initialize when module is imported, but don't fail if it doesn't work
+_initialization_success = _safe_initialize()
