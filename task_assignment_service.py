@@ -13,7 +13,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from collections import defaultdict
-from email_services import send_task_assignment
+# from email_services import send_task_assignment
 
 # Load environment variables
 load_dotenv()

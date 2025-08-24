@@ -16,8 +16,28 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+salary_predictor = None
+competitiveness_analyzer = None
+
+try:
+    salary_predictor = get_salary_predictor()
+    competitiveness_analyzer = get_competitiveness_analyzer()
+    logger.info("Salary prediction services initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize salary prediction services: {e}")
+    # Initialize with None to prevent crashes
+    salary_predictor = None
+    competitiveness_analyzer = None
+
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev_key_for_testing')
+
+@app.context_processor
+def inject_template_globals():
+    """Make certain functions available to all templates"""
+    return dict(
+        format_date=format_date
+    )
 
 # Employee service configuration
 EMPLOYEE_SERVICE_URL = os.environ.get('EMPLOYEE_SERVICE_URL', 'http://localhost:5001/api')
@@ -1003,7 +1023,7 @@ def hr_create_employee():
     # Available roles that can be recommended
     available_roles = ['developer', 'project manager', 'data analyst', 'devops engineer']
     
-    return render_template('hr_create_employee.html', 
+    return render_template('hr/create_employee.html', 
                          skills=unique_skills, 
                          available_roles=available_roles)
 
@@ -1693,7 +1713,18 @@ def api_estimate_salary():
         return jsonify({'success': False, 'error': 'Unauthorized'}), 403
     
     try:
+        # Check if salary services are initialized
+        if salary_predictor is None:
+            logger.error("Salary predictor not initialized")
+            return jsonify({
+                'success': False, 
+                'error': 'Salary prediction service is not available. Please contact your administrator.'
+            }), 503
+        
         data = request.json
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+            
         job_title = data.get('job_title')
         location = data.get('location')
         experience_level = data.get('experience_level')
@@ -1702,32 +1733,51 @@ def api_estimate_salary():
         if not all([job_title, location, experience_level]):
             return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
         
+        logger.info(f"Estimating salary for {job_title} in {location} with {experience_level} experience")
+        
         # Get salary prediction
         prediction = salary_predictor.predict_salary(job_title, location, experience_level)
+        
+        if not prediction:
+            logger.error("Salary prediction returned None")
+            return jsonify({
+                'success': False, 
+                'error': 'Unable to generate salary prediction for the given parameters'
+            }), 400
         
         result = {
             'success': True,
             'prediction': prediction
         }
         
-        # Add competitiveness analysis if budget is provided
-        if budget:
+        # Add competitiveness analysis if budget is provided and analyzer is available
+        if budget and competitiveness_analyzer is not None:
             try:
                 budget = float(budget)
                 analysis = competitiveness_analyzer.analyze_competitiveness(
-                    prediction['predicted_annual_salary'],
-                    prediction['predicted_range'],
+                    prediction.get('predicted_annual_salary', 0),
+                    prediction.get('predicted_range', [0, 0]),
                     budget
                 )
                 result['competitiveness_analysis'] = analysis
-            except ValueError:
-                # If budget is not a valid number, skip the analysis
-                pass
+                logger.info("Competitiveness analysis completed successfully")
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Invalid budget value provided: {e}")
+                # Don't fail the entire request for invalid budget
+            except Exception as e:
+                logger.error(f"Error in competitiveness analysis: {e}")
+                # Don't fail the entire request for analysis errors
         
+        logger.info("Salary estimation completed successfully")
         return jsonify(result)
         
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"Error in salary estimation: {e}")
+        return jsonify({
+            'success': False, 
+            'error': f'Internal server error: {str(e)}'
+        }), 500
+
 
 @app.route('/api/retrain_salary_model', methods=['POST'])
 def api_retrain_salary_model():
@@ -1736,21 +1786,37 @@ def api_retrain_salary_model():
         return jsonify({'success': False, 'error': 'Unauthorized'}), 403
         
     try:
-        # Use the new retrain function that forces fresh data collection
+        logger.info("Starting salary model retraining process")
+        
+        # Use the retrain function that forces fresh data collection
         success = retrain_salary_model()
+        
         if success:
+            # Reinitialize the global predictors with the new model
+            global salary_predictor, competitiveness_analyzer
+            try:
+                salary_predictor = get_salary_predictor()
+                competitiveness_analyzer = get_competitiveness_analyzer()
+                logger.info("Salary prediction services reinitialized after retraining")
+            except Exception as reinit_error:
+                logger.error(f"Failed to reinitialize services after retraining: {reinit_error}")
+                # Continue anyway, the retrain was successful
+            
             return jsonify({
                 'success': True, 
                 'message': 'Salary model retrained successfully with fresh data'
             })
         else:
+            logger.error("Model retraining failed - insufficient fresh data collected")
             return jsonify({
                 'success': False, 
                 'error': 'Failed to retrain model - insufficient fresh data collected'
             }), 500
+            
     except Exception as e:
         logger.error(f"Error during model retraining: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
         
 # Add a jinja template filter for formatting dates
 @app.template_filter('datetime')

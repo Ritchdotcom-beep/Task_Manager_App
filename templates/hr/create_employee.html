@@ -190,6 +190,12 @@
                     <p class="text-gray-400">Submit an employee recommendation for admin review and approval</p>
                 </div>
 
+                <!-- Debug Console -->
+                <div id="debug-console" class="mb-4 p-3 bg-gray-900 border border-gray-600 rounded-lg hidden">
+                    <h4 class="text-yellow-400 font-semibold mb-2">Debug Info:</h4>
+                    <div id="debug-output" class="text-gray-300 text-sm font-mono"></div>
+                </div>
+
                 <!-- Progress Indicator -->
                 <div class="progress-indicator mb-8">
                     <div class="progress-step active" id="step-basic">
@@ -262,7 +268,7 @@
                                 <option value="frontend developer">Frontend Developer</option>
                                 <option value="full stack developer">Full Stack Developer</option>
                             </select>
-                            <div id="role-error" class="validation-error hidden">Please select a role</div>
+                            <div id="requested_role-error" class="validation-error hidden">Please select a role</div>
                             <div class="form-help">Select the most appropriate role for this candidate</div>
                         </div>
 
@@ -313,62 +319,16 @@
                                     <span class="skill-tag" data-skill="C#">C#</span>
                                     <span class="skill-tag" data-skill="PHP">PHP</span>
                                     <span class="skill-tag" data-skill="TypeScript">TypeScript</span>
-                                    <span class="skill-tag" data-skill="Go">Go</span>
-                                    <span class="skill-tag" data-skill="Rust">Rust</span>
                                 </div>
                             </div>
 
                             <div class="mb-4">
-                                <div class="text-xs font-medium text-gray-400 mb-2">Frameworks & Libraries</div>
+                                <div class="text-xs font-medium text-gray-400 mb-2">Frameworks</div>
                                 <div class="suggested-skills">
                                     <span class="skill-tag" data-skill="React">React</span>
                                     <span class="skill-tag" data-skill="Vue.js">Vue.js</span>
                                     <span class="skill-tag" data-skill="Angular">Angular</span>
                                     <span class="skill-tag" data-skill="Node.js">Node.js</span>
-                                    <span class="skill-tag" data-skill="Django">Django</span>
-                                    <span class="skill-tag" data-skill="Flask">Flask</span>
-                                    <span class="skill-tag" data-skill="Express.js">Express.js</span>
-                                    <span class="skill-tag" data-skill="Spring Boot">Spring Boot</span>
-                                </div>
-                            </div>
-
-                            <div class="mb-4">
-                                <div class="text-xs font-medium text-gray-400 mb-2">Databases & Storage</div>
-                                <div class="suggested-skills">
-                                    <span class="skill-tag" data-skill="MySQL">MySQL</span>
-                                    <span class="skill-tag" data-skill="PostgreSQL">PostgreSQL</span>
-                                    <span class="skill-tag" data-skill="MongoDB">MongoDB</span>
-                                    <span class="skill-tag" data-skill="Redis">Redis</span>
-                                    <span class="skill-tag" data-skill="SQLite">SQLite</span>
-                                    <span class="skill-tag" data-skill="Elasticsearch">Elasticsearch</span>
-                                </div>
-                            </div>
-
-                            <div class="mb-4">
-                                <div class="text-xs font-medium text-gray-400 mb-2">Cloud & DevOps</div>
-                                <div class="suggested-skills">
-                                    <span class="skill-tag" data-skill="AWS">AWS</span>
-                                    <span class="skill-tag" data-skill="Azure">Azure</span>
-                                    <span class="skill-tag" data-skill="Google Cloud">Google Cloud</span>
-                                    <span class="skill-tag" data-skill="Docker">Docker</span>
-                                    <span class="skill-tag" data-skill="Kubernetes">Kubernetes</span>
-                                    <span class="skill-tag" data-skill="Jenkins">Jenkins</span>
-                                    <span class="skill-tag" data-skill="Terraform">Terraform</span>
-                                    <span class="skill-tag" data-skill="Git">Git</span>
-                                </div>
-                            </div>
-
-                            <div class="mb-4">
-                                <div class="text-xs font-medium text-gray-400 mb-2">Data & Analytics</div>
-                                <div class="suggested-skills">
-                                    <span class="skill-tag" data-skill="SQL">SQL</span>
-                                    <span class="skill-tag" data-skill="Pandas">Pandas</span>
-                                    <span class="skill-tag" data-skill="NumPy">NumPy</span>
-                                    <span class="skill-tag" data-skill="TensorFlow">TensorFlow</span>
-                                    <span class="skill-tag" data-skill="PyTorch">PyTorch</span>
-                                    <span class="skill-tag" data-skill="Scikit-learn">Scikit-learn</span>
-                                    <span class="skill-tag" data-skill="Tableau">Tableau</span>
-                                    <span class="skill-tag" data-skill="Power BI">Power BI</span>
                                 </div>
                             </div>
                         </div>
@@ -390,8 +350,7 @@
                                       name="additional_notes" 
                                       rows="4" 
                                       class="dark-input w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                      placeholder="Any additional information about the candidate's qualifications, achievements, or special considerations..."></textarea>
-                            <div class="form-help">Provide any additional context that might help with the evaluation</div>
+                                      placeholder="Any additional information about the candidate..."></textarea>
                         </div>
                     </div>
 
@@ -402,34 +361,8 @@
                             Review & Submit
                         </div>
                         
-                        <div class="bg-blue-900 bg-opacity-50 border border-blue-600 rounded-lg p-4 mb-6">
-                            <h4 class="text-blue-200 font-medium mb-2">
-                                <i class="fas fa-info-circle mr-2"></i>
-                                Before You Submit
-                            </h4>
-                            <ul class="text-blue-200 text-sm space-y-1">
-                                <li>• Review all information for accuracy</li>
-                                <li>• Ensure the candidate's email is correct for credential delivery</li>
-                                <li>• This recommendation will be sent to administrators for approval</li>
-                                <li>• You'll receive updates on the approval status</li>
-                            </ul>
-                        </div>
-
                         <div id="review-content" class="space-y-4">
                             <!-- Review content will be populated by JavaScript -->
-                        </div>
-
-                        <div class="mt-6 p-4 bg-yellow-900 bg-opacity-50 border border-yellow-600 rounded-lg">
-                            <div class="flex items-start">
-                                <i class="fas fa-exclamation-triangle text-yellow-400 mr-3 mt-1"></i>
-                                <div>
-                                    <h5 class="text-yellow-200 font-medium">Important Notice</h5>
-                                    <p class="text-yellow-200 text-sm mt-1">
-                                        Once submitted, this recommendation will be forwarded to system administrators for review. 
-                                        If approved, the employee will receive their login credentials via email and be added to the system.
-                                    </p>
-                                </div>
-                            </div>
                         </div>
                     </div>
 
@@ -442,9 +375,15 @@
                         </button>
                         
                         <div class="flex space-x-4 ml-auto">
+                            <button type="button" 
+                                    id="debug-btn" 
+                                    class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg transition-colors text-sm">
+                                Debug
+                            </button>
+                            
                             <a href="/human_resource_dashboard" 
                                class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg transition-colors">
-                                <i class="fas fa-times mr-2"></i>Cancel
+                                Cancel
                             </a>
                             
                             <button type="button" 
@@ -456,7 +395,7 @@
                             <button type="submit" 
                                     id="submit-btn" 
                                     class="hidden bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition-colors">
-                                <i class="fas fa-paper-plane mr-2"></i>Submit Recommendation
+                                Submit
                             </button>
                         </div>
                     </div>
@@ -466,58 +405,268 @@
     </div>
 
     <script>
+        // Global variables
         let currentStep = 1;
         const totalSteps = 3;
         let selectedSkills = new Set();
 
-        // Form validation rules
+        // Debug function
+        function debug(message) {
+            console.log('DEBUG:', message);
+            const debugOutput = document.getElementById('debug-output');
+            if (debugOutput) {
+                debugOutput.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+                debugOutput.scrollTop = debugOutput.scrollHeight;
+            }
+        }
+
+        // Validation rules
         const validationRules = {
             name: (value) => value.trim().length >= 2,
             email: (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),
             requested_role: (value) => value.trim().length > 0
         };
 
-        // Initialize form
+        // Initialize form when DOM is loaded
         document.addEventListener('DOMContentLoaded', function() {
+            debug('DOM loaded, initializing form...');
+            
+            setupEventListeners();
             setupSkillSelection();
-            setupFormNavigation();
-            setupFormValidation();
+            updateStepDisplay();
+            
+            debug('Form initialization complete');
         });
 
+        function setupEventListeners() {
+            debug('Setting up event listeners...');
+            
+            // Next button
+            const nextBtn = document.getElementById('next-btn');
+            if (nextBtn) {
+                nextBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    debug('Next button clicked, current step: ' + currentStep);
+                    handleNextStep();
+                });
+                debug('Next button listener added');
+            } else {
+                debug('ERROR: Next button not found!');
+            }
+
+            // Previous button
+            const prevBtn = document.getElementById('prev-btn');
+            if (prevBtn) {
+                prevBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    debug('Previous button clicked');
+                    handlePrevStep();
+                });
+            }
+
+            // Debug button
+            const debugBtn = document.getElementById('debug-btn');
+            if (debugBtn) {
+                debugBtn.addEventListener('click', function() {
+                    const debugConsole = document.getElementById('debug-console');
+                    debugConsole.classList.toggle('hidden');
+                });
+            }
+
+            // Form validation
+            Object.keys(validationRules).forEach(fieldName => {
+                const field = document.getElementById(fieldName);
+                if (field) {
+                    field.addEventListener('blur', () => validateField(fieldName));
+                    field.addEventListener('input', () => clearFieldError(fieldName));
+                }
+            });
+
+            debug('Event listeners setup complete');
+        }
+
         function setupSkillSelection() {
+            debug('Setting up skill selection...');
+            
             const skillsInput = document.getElementById('skills-input');
             const skillTags = document.querySelectorAll('.skill-tag');
-            const selectedSkillsContainer = document.getElementById('selected-skills');
 
             // Handle skill tag clicks
             skillTags.forEach(tag => {
                 tag.addEventListener('click', function() {
                     const skill = this.dataset.skill;
+                    debug('Skill clicked: ' + skill);
                     toggleSkill(skill);
                 });
             });
 
             // Handle manual skill input
-            skillsInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter' || e.key === ',') {
-                    e.preventDefault();
-                    const skill = this.value.trim();
-                    if (skill && !selectedSkills.has(skill)) {
-                        addSkill(skill);
-                        this.value = '';
+            if (skillsInput) {
+                skillsInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault();
+                        const skill = this.value.trim();
+                        if (skill && !selectedSkills.has(skill)) {
+                            addSkill(skill);
+                            this.value = '';
+                        }
                     }
-                }
-            });
+                });
+            }
 
-            skillsInput.addEventListener('blur', function() {
-                const skill = this.value.trim();
-                if (skill && !selectedSkills.has(skill)) {
-                    addSkill(skill);
-                    this.value = '';
-                }
-            });
+            debug('Skill selection setup complete');
         }
 
+        function handleNextStep() {
+            debug('Handling next step...');
+            
+            if (validateCurrentStep()) {
+                debug('Validation passed, moving to next step');
+                nextStep();
+            } else {
+                debug('Validation failed');
+                scrollToFirstError();
+            }
+        }
+
+        function handlePrevStep() {
+            debug('Handling previous step...');
+            prevStep();
+        }
+
+        function validateCurrentStep() {
+            debug('Validating current step: ' + currentStep);
+            
+            if (currentStep === 1) {
+                const nameValid = validateField('name');
+                const emailValid = validateField('email');
+                const roleValid = validateField('requested_role');
+                
+                debug('Step 1 validation - name: ' + nameValid + ', email: ' + emailValid + ', role: ' + roleValid);
+                return nameValid && emailValid && roleValid;
+            }
+            
+            debug('Step ' + currentStep + ' validation passed (no required fields)');
+            return true;
+        }
+
+        function validateField(fieldName) {
+            const field = document.getElementById(fieldName);
+            const errorElement = document.getElementById(fieldName + '-error');
+            
+            if (!field || !errorElement) {
+                debug('Field or error element not found: ' + fieldName);
+                return false;
+            }
+
+            const validator = validationRules[fieldName];
+            if (!validator) {
+                debug('No validation rule for: ' + fieldName);
+                return true;
+            }
+
+            const isValid = validator(field.value);
+            debug('Field ' + fieldName + ' validation: ' + isValid);
+
+            if (isValid) {
+                field.classList.remove('border-red-500');
+                errorElement.classList.add('hidden');
+            } else {
+                field.classList.add('border-red-500');
+                errorElement.classList.remove('hidden');
+            }
+
+            return isValid;
+        }
+
+        function clearFieldError(fieldName) {
+            const field = document.getElementById(fieldName);
+            const errorElement = document.getElementById(fieldName + '-error');
+            
+            if (field && errorElement) {
+                field.classList.remove('border-red-500');
+                errorElement.classList.add('hidden');
+            }
+        }
+
+        function nextStep() {
+            debug('Moving to next step from: ' + currentStep);
+            
+            if (currentStep < totalSteps) {
+                currentStep++;
+                debug('New current step: ' + currentStep);
+                updateStepDisplay();
+                
+                if (currentStep === 3) {
+                    populateReviewSection();
+                }
+            }
+        }
+
+        function prevStep() {
+            debug('Moving to previous step from: ' + currentStep);
+            
+            if (currentStep > 1) {
+                currentStep--;
+                debug('New current step: ' + currentStep);
+                updateStepDisplay();
+            }
+        }
+
+        function updateStepDisplay() {
+            debug('Updating step display for step: ' + currentStep);
+            
+            // Hide all sections
+            const sections = ['basic-section', 'skills-section', 'review-section'];
+            sections.forEach(sectionId => {
+                const section = document.getElementById(sectionId);
+                if (section) {
+                    section.classList.add('hidden');
+                }
+            });
+
+            // Show current section
+            const currentSectionId = sections[currentStep - 1];
+            const currentSection = document.getElementById(currentSectionId);
+            if (currentSection) {
+                currentSection.classList.remove('hidden');
+                debug('Showing section: ' + currentSectionId);
+            } else {
+                debug('ERROR: Section not found: ' + currentSectionId);
+            }
+
+            // Update progress indicators
+            const progressSteps = document.querySelectorAll('.progress-step');
+            progressSteps.forEach((step, index) => {
+                step.classList.remove('active', 'completed');
+                if (index + 1 < currentStep) {
+                    step.classList.add('completed');
+                } else if (index + 1 === currentStep) {
+                    step.classList.add('active');
+                }
+            });
+
+            // Update navigation buttons
+            const nextBtn = document.getElementById('next-btn');
+            const prevBtn = document.getElementById('prev-btn');
+            const submitBtn = document.getElementById('submit-btn');
+
+            if (prevBtn) prevBtn.classList.toggle('hidden', currentStep === 1);
+            if (nextBtn) nextBtn.classList.toggle('hidden', currentStep === totalSteps);
+            if (submitBtn) submitBtn.classList.toggle('hidden', currentStep !== totalSteps);
+            
+            debug('Step display updated successfully');
+        }
+
+        function scrollToFirstError() {
+            const firstError = document.querySelector('.border-red-500');
+            if (firstError) {
+                firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                firstError.focus();
+            }
+        }
+
+        // Skill management functions
         function toggleSkill(skill) {
             if (selectedSkills.has(skill)) {
                 removeSkill(skill);
@@ -542,6 +691,8 @@
             const container = document.getElementById('selected-skills');
             const skillsInput = document.getElementById('skills');
             
+            if (!container || !skillsInput) return;
+            
             if (selectedSkills.size === 0) {
                 container.innerHTML = '<span class="text-gray-500 text-sm">No skills selected yet</span>';
                 skillsInput.value = '';
@@ -549,9 +700,9 @@
                 const skillsArray = Array.from(selectedSkills);
                 container.innerHTML = skillsArray.map(skill => 
                     `<span class="inline-block bg-indigo-600 text-white px-3 py-1 rounded-full text-sm mr-2 mb-2">
-                        ${skill}
+                        ${escapeHtml(skill)}
                         <button type="button" onclick="removeSkill('${skill}')" class="ml-2 hover:text-gray-300">
-                            <i class="fas fa-times"></i>
+                            ×
                         </button>
                     </span>`
                 ).join('');
@@ -570,359 +721,43 @@
             });
         }
 
-        function setupFormNavigation() {
-            const nextBtn = document.getElementById('next-btn');
-            const prevBtn = document.getElementById('prev-btn');
-            const submitBtn = document.getElementById('submit-btn');
-
-            nextBtn.addEventListener('click', function() {
-                if (validateCurrentStep()) {
-                    nextStep();
-                }
-            });
-
-            prevBtn.addEventListener('click', function() {
-                prevStep();
-            });
-
-            // Form submission
-            document.getElementById('recommendEmployeeForm').addEventListener('submit', function(e) {
-                if (!validateAllSteps()) {
-                    e.preventDefault();
-                    return false;
-                }
-                
-                // Show loading state
-                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Submitting...';
-                submitBtn.disabled = true;
-            });
-        }
-
-        function setupFormValidation() {
-            // Real-time validation
-            Object.keys(validationRules).forEach(fieldName => {
-                const field = document.getElementById(fieldName);
-                if (field) {
-                    field.addEventListener('blur', () => validateField(fieldName));
-                    field.addEventListener('input', () => clearFieldError(fieldName));
-                }
-            });
-        }
-
-        function validateField(fieldName) {
-            const field = document.getElementById(fieldName);
-            const errorElement = document.getElementById(`${fieldName}-error`);
-            const isValid = validationRules[fieldName](field.value);
-
-            if (isValid) {
-                field.classList.remove('border-red-500');
-                errorElement.classList.add('hidden');
-                return true;
-            } else {
-                field.classList.add('border-red-500');
-                errorElement.classList.remove('hidden');
-                return false;
-            }
-        }
-
-        function clearFieldError(fieldName) {
-            const field = document.getElementById(fieldName);
-            const errorElement = document.getElementById(`${fieldName}-error`);
-            field.classList.remove('border-red-500');
-            errorElement.classList.add('hidden');
-        }
-
-        function validateCurrentStep() {
-            if (currentStep === 1) {
-                return validateField('name') && validateField('email') && validateField('requested_role');
-            }
-            return true;
-        }
-
-        function validateAllSteps() {
-            return validateField('name') && validateField('email') && validateField('requested_role');
-        }
-
-        function nextStep() {
-            if (currentStep < totalSteps) {
-                currentStep++;
-                updateStepDisplay();
-                
-                if (currentStep === 3) {
-                    populateReviewSection();
-                }
-            }
-        }
-
-        function prevStep() {
-            if (currentStep > 1) {
-                currentStep--;
-                updateStepDisplay();
-            }
-        }
-
-        function updateStepDisplay() {
-            // Hide all sections
-            document.querySelectorAll('.form-section').forEach(section => {
-                section.classList.add('hidden');
-            });
-
-            // Show current section
-            const sections = ['basic-section', 'skills-section', 'review-section'];
-            document.getElementById(sections[currentStep - 1]).classList.remove('hidden');
-
-            // Update progress indicators
-            document.querySelectorAll('.progress-step').forEach((step, index) => {
-                step.classList.remove('active', 'completed');
-                if (index + 1 < currentStep) {
-                    step.classList.add('completed');
-                } else if (index + 1 === currentStep) {
-                    step.classList.add('active');
-                }
-            });
-
-            // Update navigation buttons
-            const nextBtn = document.getElementById('next-btn');
-            const prevBtn = document.getElementById('prev-btn');
-            const submitBtn = document.getElementById('submit-btn');
-
-            prevBtn.classList.toggle('hidden', currentStep === 1);
-            nextBtn.classList.toggle('hidden', currentStep === totalSteps);
-            submitBtn.classList.toggle('hidden', currentStep !== totalSteps);
-        }
-
         function populateReviewSection() {
-            const reviewContent = document.getElementById('review-content');
-            const formData = new FormData(document.getElementById('recommendEmployeeForm'));
+            debug('Populating review section...');
             
-            const name = formData.get('name');
-            const email = formData.get('email');
-            const role = formData.get('requested_role');
-            const experience = formData.get('experience') || 'Not specified';
+            const reviewContent = document.getElementById('review-content');
+            if (!reviewContent) return;
+            
+            const name = document.getElementById('name').value || '';
+            const email = document.getElementById('email').value || '';
+            const role = document.getElementById('requested_role').value || '';
+            const experience = document.getElementById('experience').value || 'Not specified';
             const skills = Array.from(selectedSkills);
-            const additionalNotes = formData.get('additional_notes') || 'None';
-
-            const roleDisplayNames = {
-                'developer': 'Software Developer',
-                'project manager': 'Project Manager',
-                'data analyst': 'Data Analyst',
-                'devops engineer': 'DevOps Engineer',
-                'ui/ux designer': 'UI/UX Designer',
-                'machine learning engineer': 'Machine Learning Engineer',
-                'backend developer': 'Backend Developer',
-                'frontend developer': 'Frontend Developer',
-                'full stack developer': 'Full Stack Developer'
-            };
+            const notes = document.getElementById('additional_notes').value || 'None';
 
             reviewContent.innerHTML = `
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="bg-gray-800 rounded-lg p-4">
-                        <h4 class="text-white font-medium mb-3 flex items-center">
-                            <i class="fas fa-user mr-2 text-indigo-400"></i>
-                            Personal Information
-                        </h4>
-                        <div class="space-y-2 text-sm">
-                            <div class="flex justify-between">
-                                <span class="text-gray-400">Full Name:</span>
-                                <span class="text-white font-medium">${name}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-400">Email:</span>
-                                <span class="text-white font-medium">${email}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-400">Recommended Role:</span>
-                                <span class="text-white font-medium">${roleDisplayNames[role] || role}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-400">Experience:</span>
-                                <span class="text-white font-medium">${experience}${experience !== 'Not specified' ? ' years' : ''}</span>
-                            </div>
-                        </div>
+                <div class="bg-gray-800 rounded-lg p-4">
+                    <h4 class="text-white font-medium mb-3">Review Information</h4>
+                    <div class="space-y-2 text-sm">
+                        <div><strong>Name:</strong> ${escapeHtml(name)}</div>
+                        <div><strong>Email:</strong> ${escapeHtml(email)}</div>
+                        <div><strong>Role:</strong> ${escapeHtml(role)}</div>
+                        <div><strong>Experience:</strong> ${escapeHtml(experience)} years</div>
+                        <div><strong>Skills:</strong> ${skills.length > 0 ? skills.map(s => escapeHtml(s)).join(', ') : 'None'}</div>
+                        <div><strong>Notes:</strong> ${escapeHtml(notes)}</div>
                     </div>
-
-                    <div class="bg-gray-800 rounded-lg p-4">
-                        <h4 class="text-white font-medium mb-3 flex items-center">
-                            <i class="fas fa-cogs mr-2 text-indigo-400"></i>
-                            Technical Skills
-                        </h4>
-                        <div class="text-sm">
-                            ${skills.length > 0 ? 
-                                skills.map(skill => 
-                                    `<span class="inline-block bg-indigo-600 text-white px-2 py-1 rounded text-xs mr-1 mb-1">${skill}</span>`
-                                ).join('') : 
-                                '<span class="text-gray-400">No specific skills listed</span>'
-                            }
-                        </div>
-                    </div>
-                </div>
-
-                ${additionalNotes !== 'None' ? `
-                <div class="mt-6 bg-gray-800 rounded-lg p-4">
-                    <h4 class="text-white font-medium mb-3 flex items-center">
-                        <i class="fas fa-sticky-note mr-2 text-indigo-400"></i>
-                        Additional Notes
-                    </h4>
-                    <p class="text-gray-300 text-sm whitespace-pre-wrap">${additionalNotes}</p>
-                </div>
-                ` : ''}
-
-                <div class="mt-6 bg-green-900 bg-opacity-50 border border-green-600 rounded-lg p-4">
-                    <h4 class="text-green-200 font-medium mb-2 flex items-center">
-                        <i class="fas fa-check-circle mr-2"></i>
-                        Next Steps After Submission
-                    </h4>
-                    <ul class="text-green-200 text-sm space-y-1">
-                        <li>• Recommendation will be sent to system administrators</li>
-                        <li>• Admin will review candidate qualifications and role fit</li>
-                        <li>• If approved, employee account will be created automatically</li>
-                        <li>• Login credentials will be sent to candidate's email</li>
-                        <li>• You'll receive notification of approval/rejection status</li>
-                    </ul>
                 </div>
             `;
         }
 
-        // Utility function to make skill removal work from dynamically created content
-        window.removeSkill = function(skill) {
-            selectedSkills.delete(skill);
-            updateSkillDisplay();
-            updateSkillTags();
-        };
-
-        // Handle form submission with improved error handling
-        function handleFormSubmission(e) {
-            // Additional client-side validation before submission
-            const name = document.getElementById('name').value.trim();
-            const email = document.getElementById('email').value.trim();
-            const role = document.getElementById('requested_role').value;
-
-            if (!name || !email || !role) {
-                e.preventDefault();
-                alert('Please fill in all required fields before submitting.');
-                return false;
-            }
-
-            // Email format validation
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                e.preventDefault();
-                alert('Please enter a valid email address.');
-                return false;
-            }
-
-            return true;
+        // Utility function
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
-        // Enhanced error handling for network issues
-        window.addEventListener('beforeunload', function(e) {
-            const form = document.getElementById('recommendEmployeeForm');
-            const submitBtn = document.getElementById('submit-btn');
-            
-            if (submitBtn.disabled && submitBtn.innerHTML.includes('Submitting')) {
-                e.preventDefault();
-                e.returnValue = 'Your employee recommendation is being submitted. Are you sure you want to leave?';
-            }
-        });
-
-        // Auto-save functionality (optional enhancement)
-        function saveFormProgress() {
-            const formData = {
-                name: document.getElementById('name').value,
-                email: document.getElementById('email').value,
-                requested_role: document.getElementById('requested_role').value,
-                experience: document.getElementById('experience').value,
-                skills: Array.from(selectedSkills),
-                additional_notes: document.getElementById('additional_notes').value,
-                currentStep: currentStep
-            };
-
-            localStorage.setItem('hr_employee_recommendation_draft', JSON.stringify(formData));
-        }
-
-        function loadFormProgress() {
-            const saved = localStorage.getItem('hr_employee_recommendation_draft');
-            if (saved) {
-                try {
-                    const data = JSON.parse(saved);
-                    
-                    // Restore form fields
-                    if (data.name) document.getElementById('name').value = data.name;
-                    if (data.email) document.getElementById('email').value = data.email;
-                    if (data.requested_role) document.getElementById('requested_role').value = data.requested_role;
-                    if (data.experience) document.getElementById('experience').value = data.experience;
-                    if (data.additional_notes) document.getElementById('additional_notes').value = data.additional_notes;
-                    
-                    // Restore skills
-                    if (data.skills && data.skills.length > 0) {
-                        data.skills.forEach(skill => selectedSkills.add(skill));
-                        updateSkillDisplay();
-                        updateSkillTags();
-                    }
-
-                    // Show restoration notification
-                    const notification = document.createElement('div');
-                    notification.className = 'fixed top-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-                    notification.innerHTML = '<i class="fas fa-info-circle mr-2"></i>Draft restored from previous session';
-                    document.body.appendChild(notification);
-                    
-                    setTimeout(() => {
-                        notification.remove();
-                    }, 3000);
-
-                } catch (e) {
-                    console.error('Error loading saved form data:', e);
-                }
-            }
-        }
-
-        // Clear saved draft after successful submission
-        function clearFormProgress() {
-            localStorage.removeItem('hr_employee_recommendation_draft');
-        }
-
-        // Auto-save on form changes
-        document.addEventListener('DOMContentLoaded', function() {
-            // Load any saved progress
-            loadFormProgress();
-
-            // Auto-save on form changes
-            const form = document.getElementById('recommendEmployeeForm');
-            let saveTimeout;
-            
-            form.addEventListener('input', function() {
-                clearTimeout(saveTimeout);
-                saveTimeout = setTimeout(saveFormProgress, 1000); // Save after 1 second of inactivity
-            });
-
-            // Clear draft on successful submission
-            form.addEventListener('submit', function() {
-                setTimeout(clearFormProgress, 2000); // Clear after 2 seconds to allow for submission
-            });
-        });
-
-        // Keyboard navigation
-        document.addEventListener('keydown', function(e) {
-            if (e.altKey) {
-                if (e.key === 'ArrowRight' && currentStep < totalSteps) {
-                    if (validateCurrentStep()) {
-                        e.preventDefault();
-                        nextStep();
-                    }
-                } else if (e.key === 'ArrowLeft' && currentStep > 1) {
-                    e.preventDefault();
-                    prevStep();
-                }
-            }
-        });
-
-        // Add helpful tooltips
-        document.addEventListener('DOMContentLoaded', function() {
-            // Add keyboard shortcut hints
-            const keyboardHint = document.createElement('div');
-            keyboardHint.className = 'fixed bottom-4 left-4 bg-gray-800 text-gray-300 text-xs px-3 py-2 rounded-lg border border-gray-600';
-            keyboardHint.innerHTML = '<i class="fas fa-keyboard mr-1"></i>Alt + ← → to navigate steps';
-            document.body.appendChild(keyboardHint);
-        });
+        // Make removeSkill globally accessible
+        window.removeSkill = removeSkill;
     </script>
 </body>
 </html>

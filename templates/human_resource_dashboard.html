@@ -301,7 +301,7 @@
             <div class="dark-card rounded-lg shadow p-6 mb-8">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-lg font-bold">Employee Management</h3>
-                    <button onclick="window.location.href='/hr/create_employee'" class="bg-indigo-700 text-white px-4 py-2 rounded hover:bg-indigo-800">
+                    <button onclick="window.location.href='hr/create_employee'" class="bg-indigo-700 text-white px-4 py-2 rounded hover:bg-indigo-800">
                         <i class="fas fa-plus mr-2"></i>Recommend Employee
                     </button>
                 </div>
@@ -1039,8 +1039,7 @@ async function retrainModel() {
     });
 
 
-        // Estimate salary
-    function estimateSalary() {
+   function estimateSalary() {
     const jobTitle = document.getElementById('jobTitle').value;
     const location = document.getElementById('location').value;
     const experienceLevel = document.getElementById('experienceLevel').value;
@@ -1174,7 +1173,6 @@ async function retrainModel() {
         document.getElementById('noEstimation').classList.remove('hidden');
     });
 }
-
         function showEstimationLoading() {
             document.getElementById('loadingEstimation').classList.remove('hidden');
             document.getElementById('estimationResults').classList.add('hidden');
