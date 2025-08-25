@@ -11,25 +11,72 @@ import joblib
 import time
 import json
 from datetime import datetime
+import threading
 import logging
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+retraining_progress = {}
+progress_lock = threading.Lock()
+
+
+
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class SalaryDataCollector:
-    """Phase 1: Data Collection and Quality Assessment"""
+
+
+def set_retraining_progress(session_id, percentage, stage, step_id=None, error=None):
+    """Set retraining progress for a session"""
+    with progress_lock:
+        retraining_progress[session_id] = {
+            'percentage': percentage,
+            'stage': stage,
+            'step_id': step_id,
+            'error': error,
+            'timestamp': datetime.now().isoformat(),
+            'completed': percentage >= 100,
+            'failed': error is not None
+        }
+
+def get_retraining_progress(session_id):
+    """Get retraining progress for a session"""
+    with progress_lock:
+        return retraining_progress.get(session_id, {
+            'percentage': 0,
+            'stage': 'Not started',
+            'step_id': None,
+            'error': None,
+            'timestamp': datetime.now().isoformat(),
+            'completed': False,
+            'failed': False
+        })
     
-    def __init__(self, api_base_url=None, api_key=None, host=None):
+def clear_retraining_progress(session_id):
+    """Clear progress data for a session"""
+    with progress_lock:
+        if session_id in retraining_progress:
+            del retraining_progress[session_id]
+
+class SalaryDataCollector:
+    """Phase 1: Data Collection and Quality Assessment with Progress Tracking"""
+    
+    def __init__(self, api_base_url=None, api_key=None, host=None, session_id=None):
         self.api_base_url = api_base_url or os.getenv("SALARY_API_URL")
         self.api_key = api_key or os.getenv("SALARY_API_KEY")
         self.host = host or os.getenv("HOST")
         self.quality_threshold = {"min_sample_size": 5, "required_confidence": ["MEDIUM", "HIGH", "VERY_HIGH"]}
+        self.session_id = session_id
         
+    def update_progress(self, percentage, stage, step_id=None):
+        """Update progress if session_id is provided"""
+        if self.session_id:
+            set_retraining_progress(self.session_id, percentage, stage, step_id)
+            logger.info(f"Progress: {percentage}% - {stage}")
+    
     def make_api_call(self, job_title, location, experience_level, location_type="CITY", max_retries=3):
         """Make API call with error handling and retry logic for rate limits"""
         for attempt in range(max_retries):
@@ -99,8 +146,33 @@ class SalaryDataCollector:
         
         return quality_score["meets_threshold"], quality_score
     
+    def extract_data_point(self, api_response, job_title, location, experience):
+        """Extract clean data point from API response"""
+        try:
+            data = api_response["data"][0]
+            
+            return {
+                "job_title": job_title,
+                "location": location,  
+                "experience_level": experience,
+                "min_salary": data.get("min_salary"),
+                "max_salary": data.get("max_salary"),
+                "median_salary": data.get("median_salary"),
+                "min_base_salary": data.get("min_base_salary"),
+                "max_base_salary": data.get("max_base_salary"), 
+                "median_base_salary": data.get("median_base_salary"),
+                "salary_period": data.get("salary_period", "MONTH"),
+                "salary_currency": data.get("salary_currency"),
+                "salary_count": data.get("salary_count"),
+                "confidence": data.get("confidence"),
+                "collected_at": datetime.now().isoformat()
+            }
+        except (KeyError, IndexError) as e:
+            logger.error(f"Error extracting data point: {e}")
+            return None
+    
     def collect_strategic_data(self, batch_size=5):
-        """Collect data for strategic job/location/experience combinations in smaller batches"""
+        """Collect data for strategic job/location/experience combinations with progress tracking"""
         
         # Define strategic combinations based on common HR needs
         priority_combinations = [
@@ -149,10 +221,26 @@ class SalaryDataCollector:
         failed_requests = 0
         max_failures = 10  # Stop if too many failures
         
-        logger.info(f"Starting data collection for {len(priority_combinations)} combinations in batches of {batch_size}...")
+        total_combinations = len(priority_combinations)
+        
+        # Update initial progress
+        self.update_progress(5, 'Starting data collection...', 'step-collect')
+        
+        logger.info(f"Starting data collection for {total_combinations} combinations in batches of {batch_size}...")
         
         for i, (job_title, location, experience) in enumerate(priority_combinations):
-            logger.info(f"Collecting data {i+1}/{len(priority_combinations)}: {job_title} in {location}")
+            # Calculate progress (5% to 85% range for data collection)
+            base_progress = 5
+            collection_progress_range = 80  # 85 - 5 = 80%
+            current_progress = base_progress + int((i / total_combinations) * collection_progress_range)
+            
+            self.update_progress(
+                current_progress, 
+                f'Collecting data {i+1}/{total_combinations}: {job_title} in {location}',
+                'step-collect'
+            )
+            
+            logger.info(f"Collecting data {i+1}/{total_combinations}: {job_title} in {location}")
             
             # Stop if too many failures (likely rate limit issues)
             if failed_requests >= max_failures:
@@ -187,36 +275,19 @@ class SalaryDataCollector:
             
             # Take a longer break after each batch
             if (i + 1) % batch_size == 0:
-                logger.info(f"Completed batch {(i + 1) // batch_size}. Taking 10 second break...")
+                batch_num = (i + 1) // batch_size
+                self.update_progress(
+                    current_progress,
+                    f'Completed batch {batch_num}. Taking break...',
+                    'step-collect'
+                )
+                logger.info(f"Completed batch {batch_num}. Taking 10 second break...")
                 time.sleep(10)
         
+        # Final data collection progress
+        self.update_progress(85, f'Data collection complete: {len(collected_data)} high-quality data points', 'step-collect')
         logger.info(f"Data collection complete: {len(collected_data)} high-quality data points collected, {failed_requests} failures")
         return collected_data, quality_report
-    
-    def extract_data_point(self, api_response, job_title, location, experience):
-        """Extract clean data point from API response"""
-        try:
-            data = api_response["data"][0]
-            
-            return {
-                "job_title": job_title,
-                "location": location,  
-                "experience_level": experience,
-                "min_salary": data.get("min_salary"),
-                "max_salary": data.get("max_salary"),
-                "median_salary": data.get("median_salary"),
-                "min_base_salary": data.get("min_base_salary"),
-                "max_base_salary": data.get("max_base_salary"), 
-                "median_base_salary": data.get("median_base_salary"),
-                "salary_period": data.get("salary_period", "MONTH"),
-                "salary_currency": data.get("salary_currency"),
-                "salary_count": data.get("salary_count"),
-                "confidence": data.get("confidence"),
-                "collected_at": datetime.now().isoformat()
-            }
-        except (KeyError, IndexError) as e:
-            logger.error(f"Error extracting data point: {e}")
-            return None
 
 class SalaryPredictor:
     """Phase 1: Baseline ML Model"""
@@ -515,6 +586,78 @@ class CompetitivenessAnalyzer:
 salary_collector = None
 salary_predictor = None
 competitiveness_analyzer = CompetitivenessAnalyzer()
+
+def initialize_salary_predictor_with_progress(session_id, force_retrain=False):
+    """Initialize the salary predictor with progress tracking"""
+    global salary_collector, salary_predictor
+    
+    try:
+        set_retraining_progress(session_id, 2, 'Initializing salary predictor...', 'step-init')
+        
+        # Initialize instances with session_id for progress tracking
+        salary_collector = SalaryDataCollector(session_id=session_id)
+        salary_predictor = SalaryPredictor()
+        
+        set_retraining_progress(session_id, 5, 'Initialized data collector and predictor', 'step-init')
+        
+        # If force_retrain is False, check if model is already loaded
+        if not force_retrain and salary_predictor.is_trained:
+            set_retraining_progress(session_id, 100, 'Salary predictor model already loaded and ready', 'step-save')
+            logger.info("Salary predictor model already loaded and ready")
+            return True
+        
+        # If force_retrain is False, try to load existing model first
+        if not force_retrain and os.path.exists(salary_predictor.model_path):
+            try:
+                salary_predictor.load_model(salary_predictor.model_path)
+                set_retraining_progress(session_id, 100, 'Existing model loaded successfully', 'step-save')
+                logger.info("Salary predictor model loaded successfully from file")
+                return True
+            except Exception as e:
+                logger.warning(f"Failed to load existing model: {e}")
+                set_retraining_progress(session_id, 8, 'Failed to load existing model, collecting fresh data...', 'step-collect')
+        
+        # Collect fresh data and train model
+        if force_retrain:
+            set_retraining_progress(session_id, 8, 'Force retrain requested. Collecting fresh data...', 'step-collect')
+            logger.info("Force retrain requested. Collecting fresh data...")
+        else:
+            set_retraining_progress(session_id, 8, 'No existing model found. Collecting data...', 'step-collect')
+            logger.info("No existing model found. Collecting data to train new model...")
+            
+        # This is where training_data gets defined - with progress tracking
+        training_data, quality_report = salary_collector.collect_strategic_data()
+        
+        if len(training_data) >= 10:
+            set_retraining_progress(session_id, 87, 'Data collection complete. Preparing for model training...', 'step-quality')
+            time.sleep(1)
+            
+            set_retraining_progress(session_id, 90, 'Starting model training...', 'step-train')
+            evaluation = salary_predictor.train_model(training_data)
+            
+            set_retraining_progress(session_id, 95, 'Model training complete. Saving model...', 'step-save')
+            time.sleep(1)
+            
+            action = "retrained" if force_retrain else "trained"
+            set_retraining_progress(session_id, 100, f'Model {action} successfully!', 'step-save')
+            logger.info(f"Salary predictor {action} successfully: R² = {evaluation['r2']:.3f}")
+            return True
+        else:
+            set_retraining_progress(session_id, 0, 'Insufficient training data collected', None, 'Not enough quality data points collected from API')
+            logger.warning("Insufficient training data collected")
+            return False
+            
+    except Exception as e:
+        error_msg = f"Failed to initialize salary predictor: {e}"
+        set_retraining_progress(session_id, 0, 'Initialization failed', None, error_msg)
+        logger.error(error_msg)
+        return False
+
+def retrain_salary_model_with_progress(session_id):
+    """Force retrain the salary prediction model with progress tracking"""
+    logger.info("Starting forced model retraining with progress tracking...")
+    return initialize_salary_predictor_with_progress(session_id, force_retrain=True)
+
 
 def initialize_salary_predictor(force_retrain=False):
     """Initialize the salary predictor by training or loading the model

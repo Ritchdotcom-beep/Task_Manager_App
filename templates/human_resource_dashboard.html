@@ -365,7 +365,7 @@
             <div class="dark-card rounded-lg shadow p-6 mb-8">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-lg font-bold">Salary Estimation Tool</h3>
-                    <button onclick="retrainModel()" id="retrainButton" class="bg-purple-700 text-white px-4 py-2 rounded hover:bg-purple-800 transition-colors">
+                    <button onclick="retrainSalaryModel()" id="retrainButton" class="bg-purple-700 text-white px-4 py-2 rounded hover:bg-purple-800 transition-colors">
                         <i id="retrain-btn" class="fas fa-sync-alt mr-2"></i>Retrain Model
                     </button>
                 </div>
@@ -492,14 +492,20 @@
                 <!-- Progress Information -->
                 <div class="mb-6">
                     <div class="flex justify-between items-center mb-2">
-                        <span class="text-sm text-gray-300" id="progressStage">Initializing...</span>
-                        <span class="text-sm text-gray-400" id="progressPercent">0%</span>
+                        <!-- Add this after the Salary Estimation Tool section -->
+                        <div id="retrain-progress" class="hidden mt-4">
+                            <div class="progress-container">
+                                <div class="progress-bar" style="width: 0%"></div>
+                            </div>
+                            <p class="progress-text text-sm text-gray-400 mt-2">0% - Initializing...</p>
+                        </div>
                     </div>
                     
                     <!-- Progress Bar -->
                     <div class="progress-container">
                         <div class="progress-bar" id="progressBar" style="width: 0%"></div>
                     </div>
+                    <div class="mt-2 text-sm text-gray-400" id="elapsedTime"></div>
                 </div>
                 
                 <!-- Progress Details -->
@@ -581,38 +587,11 @@
 
     <script>
 let retrainingInProgress = false;
-let progressUpdateInterval;
-let retrainingAbortController = null;
+let progressPollingInterval = null;
+let retrainingTimeoutId = null;
+let retrainingStartTime = null;
 
-// Employee search and filter functionality
-document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('employeeSearch');
-    const roleFilter = document.getElementById('roleFilter');
-    const employeeRows = document.querySelectorAll('.employee-row');
-
-    function filterEmployees() {
-        const searchTerm = searchInput.value.toLowerCase();
-        const selectedRole = roleFilter.value;
-
-        employeeRows.forEach(row => {
-            const name = row.dataset.name;
-            const role = row.dataset.role;
-            
-            const matchesSearch = name.includes(searchTerm);
-            const matchesRole = !selectedRole || role === selectedRole;
-            
-            if (matchesSearch && matchesRole) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
-            }
-        });
-    }
-
-    if (searchInput) searchInput.addEventListener('input', filterEmployees);
-    if (roleFilter) roleFilter.addEventListener('change', filterEmployees);
-});
-
+// Progress step management
 function updateProgressStep(stepId, status) {
     const step = document.getElementById(stepId);
     if (!step) return;
@@ -650,396 +629,588 @@ function updateProgress(percentage, stage, stepId = null) {
     if (progressStage) progressStage.textContent = stage;
     
     if (stepId) {
+        // Mark previous steps as completed
+        markPreviousStepsCompleted(stepId);
         updateProgressStep(stepId, 'active');
     }
 }
 
-function simulateRealisticProgress(apiPromise) {
-    return new Promise((resolve, reject) => {
-        let currentStepIndex = 0;
-        let currentProgress = 0;
-        let apiCompleted = false;
-        let apiResult = null;
-        let apiError = null;
-        let startTime = Date.now();
-
-        // REALISTIC timing based on your actual process:
-        // - Initialization: 5 seconds
-        // - Data Collection: ~4.5 minutes (270 seconds) - this is the bulk of the work
-        // - Quality Assessment: 15 seconds  
-        // - Model Training: 10 seconds
-        // - Saving: 5 seconds
-        // Total: ~5 minutes (305 seconds)
-        
-        const steps = [
-            { 
-                id: 'step-init', 
-                stage: 'Initializing data collection...', 
-                duration: 5000, 
-                targetProgress: 2 
-            },
-            { 
-                id: 'step-collect', 
-                stage: 'Collecting salary data from APIs (31 combinations in 6 batches)...', 
-                duration: 270000, // 4.5 minutes - matches your actual timing
-                targetProgress: 85 // Most of the work happens here
-            },
-            { 
-                id: 'step-quality', 
-                stage: 'Quality assessment and data cleaning...', 
-                duration: 15000, 
-                targetProgress: 92 
-            },
-            { 
-                id: 'step-train', 
-                stage: 'Training machine learning model...', 
-                duration: 10000, 
-                targetProgress: 98 
-            },
-            { 
-                id: 'step-save', 
-                stage: 'Saving updated model...', 
-                duration: 5000, 
-                targetProgress: 100 
-            }
-        ];
-
-        // Track API completion
-        apiPromise
-            .then(result => {
-                console.log('API completed successfully');
-                apiCompleted = true;
-                apiResult = result;
-            })
-            .catch(error => {
-                console.error('API failed:', error);
-                apiCompleted = true;
-                apiError = error;
-            });
-
-        function updateProgressForStep(step, stepStartTime, stepIndex) {
-            if (!retrainingInProgress) {
-                reject(new Error('Retraining was cancelled'));
-                return;
-            }
-
-            const elapsed = Date.now() - stepStartTime;
-            const stepProgress = Math.min(elapsed / step.duration, 1.0);
-            
-            // Calculate progress within this step
-            const prevStepProgress = stepIndex === 0 ? 0 : steps[stepIndex - 1].targetProgress;
-            const progressRange = step.targetProgress - prevStepProgress;
-            const currentStepProgress = prevStepProgress + (progressRange * stepProgress);
-            
-            currentProgress = Math.min(currentStepProgress, step.targetProgress);
-            
-            // Update the UI
-            updateProgress(Math.round(currentProgress), step.stage, step.id);
-
-            // For the data collection step, show more detailed progress
-            if (step.id === 'step-collect') {
-                const totalCombinations = 31;
-                const estimatedCurrentCombination = Math.floor(stepProgress * totalCombinations);
-                const detailedStage = `Collecting salary data from APIs (${Math.min(estimatedCurrentCombination, totalCombinations)}/31 combinations)...`;
-                updateProgress(Math.round(currentProgress), detailedStage, step.id);
-            }
-            
-            // Check if step should complete
-            const shouldComplete = elapsed >= step.duration || 
-                (stepIndex === steps.length - 1 && apiCompleted && stepProgress > 0.8);
-
-            if (shouldComplete) {
-                // Mark previous steps as completed
-                for (let i = 0; i < stepIndex; i++) {
-                    updateProgressStep(steps[i].id, 'completed');
-                }
-                
-                // Move to next step
-                currentStepIndex++;
-                if (currentStepIndex < steps.length) {
-                    setTimeout(() => runStep(currentStepIndex), 500);
-                } else {
-                    // All steps completed
-                    finalizeProgress();
-                }
-            } else {
-                // Continue this step
-                setTimeout(() => updateProgressForStep(step, stepStartTime, stepIndex), 1000); // Update every second
-            }
+function markPreviousStepsCompleted(currentStepId) {
+    const stepOrder = ['step-init', 'step-collect', 'step-quality', 'step-train', 'step-save'];
+    const currentIndex = stepOrder.indexOf(currentStepId);
+    
+    if (currentIndex > 0) {
+        for (let i = 0; i < currentIndex; i++) {
+            updateProgressStep(stepOrder[i], 'completed');
         }
-
-        function runStep(stepIndex) {
-            if (!retrainingInProgress) {
-                reject(new Error('Retraining was cancelled'));
-                return;
-            }
-
-            if (stepIndex >= steps.length) {
-                finalizeProgress();
-                return;
-            }
-
-            const step = steps[stepIndex];
-            const stepStartTime = Date.now();
-            
-            console.log(`Starting step ${stepIndex + 1}: ${step.stage}`);
-            
-            // Start updating this step
-            updateProgressForStep(step, stepStartTime, stepIndex);
-        }
-
-        function finalizeProgress() {
-            if (!apiCompleted) {
-                // API is still running, wait for it
-                console.log('Steps completed, waiting for API to finish...');
-                updateProgress(98, 'Finalizing model training...', 'step-save');
-                
-                const waitForApi = setInterval(() => {
-                    if (!retrainingInProgress) {
-                        clearInterval(waitForApi);
-                        reject(new Error('Retraining was cancelled'));
-                        return;
-                    }
-
-                    if (apiCompleted) {
-                        clearInterval(waitForApi);
-                        completeProcess();
-                    }
-                }, 1000);
-            } else {
-                completeProcess();
-            }
-        }
-
-        function completeProcess() {
-            if (apiError) {
-                // Mark current step as error
-                if (currentStepIndex < steps.length) {
-                    updateProgressStep(steps[currentStepIndex].id, 'error');
-                }
-                reject(apiError);
-            } else {
-                // Complete all steps
-                steps.forEach(step => updateProgressStep(step.id, 'completed'));
-                updateProgress(100, 'Model retraining completed successfully!');
-                
-                const totalTime = Math.round((Date.now() - startTime) / 1000);
-                console.log(`Total retraining time: ${totalTime} seconds`);
-                
-                resolve(apiResult);
-            }
-        }
-
-        // Start the first step
-        runStep(0);
-    });
+    }
 }
 
-async function retrainModel() {
-    if (retrainingInProgress) {
-        console.log('Retraining already in progress');
+function updateElapsedTime() {
+    if (!retrainingStartTime) return;
+    
+    const elapsed = Math.floor((Date.now() - retrainingStartTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    
+    const timeElement = document.getElementById('elapsedTime');
+    if (timeElement) {
+        timeElement.textContent = `Elapsed: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+}
+
+// Real progress polling function
+async function pollProgress() {
+    if (!retrainingInProgress) {
         return;
     }
     
     try {
-        retrainingInProgress = true;
+        const response = await fetch('/api/retrain_progress');
+        const data = await response.json();
         
-        // Disable the retrain button and show loading state
-        const retrainButton = document.getElementById('retrainButton');
-        if (retrainButton) {
-            retrainButton.disabled = true;
-            retrainButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Starting Retraining...';
-        }
-        
-        // Show progress modal
-        showRetrainProgressModal();
-        
-        // Reset all progress steps first
-        const stepIds = ['step-init', 'step-collect', 'step-quality', 'step-train', 'step-save'];
-        stepIds.forEach(stepId => updateProgressStep(stepId, 'reset'));
-        updateProgress(0, 'Preparing to start model retraining...');
-        
-        // Create abort controller for the API request
-        retrainingAbortController = new AbortController();
-        
-        // Start API call
-        console.log('Starting API call for model retraining...');
-        const startTime = Date.now();
-        
-        const apiPromise = fetch('/api/retrain_salary_model', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            signal: retrainingAbortController.signal
-        })
-        .then(response => {
-            const elapsed = Math.round((Date.now() - startTime) / 1000);
-            console.log(`API response received after ${elapsed} seconds. Status: ${response.status}`);
+        if (data.success && data.progress) {
+            const progress = data.progress;
             
-            if (!response.ok) {
-                throw new Error(`API request failed with status ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            const elapsed = Math.round((Date.now() - startTime) / 1000);
-            console.log(`API completed successfully after ${elapsed} seconds:`, data);
+            console.log('Progress update:', progress);
             
-            if (!data.success) {
-                throw new Error(data.error || 'API returned unsuccessful response');
+            // Update UI with real progress
+            updateProgress(progress.percentage, progress.stage, progress.step_id);
+            
+            // Check if completed or failed
+            if (progress.completed) {
+                handleRetrainingSuccess();
+            } else if (progress.failed) {
+                handleRetrainingError(progress.error || 'Unknown error occurred');
             }
-            return data;
-        });
-        
-        // Run realistic progress simulation
-        await simulateRealisticProgress(apiPromise);
-        
-        // If we get here, everything completed successfully
-        finishRetraining(true, 'Model retraining completed successfully! The salary estimator now uses the latest market data.');
-        
-    } catch (error) {
-        console.error('Retraining error:', error);
-        
-        if (error.name === 'AbortError') {
-            finishRetraining(false, 'Retraining was cancelled by user.');
         } else {
-            finishRetraining(false, 'Failed to retrain model: ' + error.message);
+            console.warn('Invalid progress response:', data);
         }
+    } catch (error) {
+        console.error('Error polling progress:', error);
+        // Don't stop polling immediately - backend might recover
     }
 }
 
+// Frontend JavaScript fix for session ID management
 
-    function finishRetraining(success, message) {
-        // Update progress to 100% if successful
-        if (success) {
-            updateProgress(100, 'Retraining completed successfully!');
+// Generate or use consistent session ID
+function getOrCreateSessionId() {
+    let sessionId = sessionStorage.getItem('retraining_session_id');
+    if (!sessionId) {
+        sessionId = 'retrain_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        sessionStorage.setItem('retraining_session_id', sessionId);
+    }
+    return sessionId;
+}
+
+// Modified retrain function that passes session ID
+async function retrainSalaryModel() {
+    try {
+        // Get or create consistent session ID
+        const sessionId = getOrCreateSessionId();
+        console.log('Using session ID:', sessionId);
+        
+        // Show loading state
+        const retrainButton = document.getElementById('retrainButton');
+        const progressContainer = document.getElementById('retrain-progress');
+        
+        if (retrainButton) {
+            retrainButton.disabled = true;
+            const icon = retrainButton.querySelector('i');
+            if (icon) {
+                icon.className = 'fas fa-spinner fa-spin mr-2';
+            }
+            retrainButton.textContent = 'Retraining...';
         }
         
-        setTimeout(() => {
-            hideRetrainProgressModal();
+        if (progressContainer) {
+            progressContainer.classList.remove('hidden');
+            const progressBar = progressContainer.querySelector('.progress-bar');
+            const progressText = progressContainer.querySelector('.progress-text');
             
-            if (success) {
-                // Show success message
-                showNotification(message, 'success');
-            } else {
-                // Show error message
-                showNotification(message, 'error');
+            if (progressBar) progressBar.style.width = '0%';
+            if (progressText) progressText.textContent = '0% - Initializing...';
+        }
+        
+        console.log('Starting real API call for retraining...');
+        
+        // Make API call with session ID
+        const response = await fetch('/api/retrain', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                session_id: sessionId,
+                force_retrain: true
+            })
+        });
+        
+        if (response.ok) {
+            console.log('Retraining API call successful, starting progress polling');
+            
+            // Start polling with the same session ID
+            pollRetrainProgress(sessionId);
+        } else {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+    } catch (error) {
+        console.error('Retrain API call failed:', error);
+        handleRetrainError(error.message);
+    }
+}
+
+// Modified progress polling function
+function pollRetrainProgress(sessionId) {
+    const pollInterval = setInterval(async () => {
+        try {
+            // Use the same session ID for progress polling
+            const response = await fetch(`/api/retrain_progress?session_id=${sessionId}`);
+            const progress = await response.json();
+            
+            console.log('Progress update:', progress);
+            
+            updateProgressUI(progress);
+            
+            if (progress.completed || progress.failed) {
+                clearInterval(pollInterval);
+                handleRetrainComplete(progress);
             }
             
-            // Reset the retrain button
-            resetRetrainButton();
-        }, 1000);
-    }
-
-    function resetRetrainButton() {
-        const retrainButton = document.getElementById('retrainButton');
-        if (retrainButton) {
-            retrainButton.disabled = false;
-            retrainButton.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Retrain Model';
+        } catch (error) {
+            console.error('Progress polling error:', error);
+            clearInterval(pollInterval);
+            handleRetrainError('Progress polling failed');
         }
-        retrainingInProgress = false;
-        retrainingAbortController = null;
-    }
+    }, 2000); // Poll every 2 seconds
+    
+    // Store interval ID for potential cancellation
+    window.retrainPollInterval = pollInterval;
+}
 
-    function showRetrainProgressModal() {
-        const modal = document.getElementById('retrainProgressModal');
-        if (modal) {
-            modal.classList.remove('hidden');
+// Cancel function that clears session
+async function cancelRetrain() {
+    try {
+        const sessionId = getOrCreateSessionId();
+        console.log('Cancelling retraining process');
+        
+        // Clear polling interval
+        if (window.retrainPollInterval) {
+            clearInterval(window.retrainPollInterval);
+        }
+        
+        // Call cancel API with session ID
+        const response = await fetch('/api/cancel_retrain', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                session_id: sessionId
+            })
+        });
+        
+        if (response.ok) {
+            console.log('Retraining cancelled successfully');
             
-            // Reset progress to initial state
-            updateProgress(0, 'Initializing...');
-            const steps = ['step-init', 'step-collect', 'step-quality', 'step-train', 'step-save'];
-            steps.forEach(stepId => updateProgressStep(stepId, 'reset'));
+            // Clear session ID
+            sessionStorage.removeItem('retraining_session_id');
             
-            // Enable cancel button initially
-            const cancelButton = document.getElementById('cancelRetrainButton');
-            if (cancelButton) {
-                cancelButton.disabled = false;
-                cancelButton.textContent = 'Cancel';
-            }
+            // Reset UI
+            resetRetrainUI();
+        }
+        
+    } catch (error) {
+        console.error('Cancel retrain failed:', error);
+    }
+}
+
+// Helper functions
+function updateProgressUI(progress) {
+    const progressContainer = document.getElementById('retrain-progress');
+    const progressBar = progressContainer.querySelector('.progress-bar');
+    const progressText = progressContainer.querySelector('.progress-text');
+    
+    if (progressBar) {
+        progressBar.style.width = `${progress.percentage}%`;
+    }
+    
+    if (progressText) {
+        progressText.textContent = `${progress.percentage}% - ${progress.stage}`;
+    }
+}
+
+function resetRetrainUI() {
+    const retrainButton = document.getElementById('retrainButton');
+    const progressContainer = document.getElementById('retrain-progress');
+    
+    if (retrainButton) {
+        retrainButton.disabled = false;
+        const icon = retrainButton.querySelector('i');
+        if (icon) {
+            icon.className = 'fas fa-sync-alt mr-2';
+        }
+        retrainButton.textContent = 'Retrain Model';
+    }
+    
+    if (progressContainer) {
+        progressContainer.classList.add('hidden');
+    }
+}
+
+function handleRetrainComplete(progress) {
+    if (progress.completed) {
+        console.log('Retraining completed successfully');
+        showNotification('Model retrained successfully!', 'success');
+    } else if (progress.failed) {
+        console.error('Retraining failed:', progress.error);
+        showNotification(`Retraining failed: ${progress.error}`, 'error');
+    }
+    
+    // Clear session
+    sessionStorage.removeItem('retraining_session_id');
+    resetRetrainUI();
+}
+
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    
+    // Set styles based on type
+    const styles = {
+        success: 'bg-green-900 border-green-700 text-green-200',
+        error: 'bg-red-900 border-red-700 text-red-200',
+        warning: 'bg-yellow-900 border-yellow-700 text-yellow-200',
+        info: 'bg-blue-900 border-blue-700 text-blue-200'
+    };
+    
+    notification.className = `fixed top-4 right-4 p-4 rounded-lg border ${styles[type]} shadow-lg z-50 max-w-md`;
+    notification.innerHTML = `
+        <div class="flex items-center">
+            <i class="fas ${type === 'success' ? 'fa-check-circle' : 
+                         type === 'error' ? 'fa-exclamation-circle' : 
+                         type === 'warning' ? 'fa-exclamation-triangle' : 
+                         'fa-info-circle'} mr-2"></i>
+            <span>${message}</span>
+            <button class="ml-4" onclick="this.parentElement.parentElement.remove()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+    
+    // Add to document
+    document.body.appendChild(notification);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 5000);
+}
+
+function handleRetrainError(message) {
+    console.error('Retraining error:', message);
+    showNotification(`Retraining failed: ${message}`, 'error');
+    resetRetrainUI();
+    
+    // Clear session
+    sessionStorage.removeItem('retraining_session_id');
+}
+
+// Main retraining function - FIXED to use real API
+async function retrainSalaryModel() {
+    try {
+        // Get or create consistent session ID
+        const sessionId = getOrCreateSessionId();
+        console.log('Using session ID:', sessionId);
+        
+        // Show loading state
+        const retrainButton = document.getElementById('retrain-btn');
+        const progressContainer = document.getElementById('retrain-progress');
+        const progressBar = progressContainer.querySelector('.progress-bar');
+        const progressText = progressContainer.querySelector('.progress-text');
+        
+        retrainButton.disabled = true;
+        retrainButton.textContent = 'Retraining...';
+        progressContainer.style.display = 'block';
+        
+        console.log('Starting real API call for retraining...');
+        
+        // Make API call with session ID
+        const response = await fetch('/api/retrain', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                session_id: sessionId,  // Pass session ID to backend
+                force_retrain: true
+            })
+        });
+        
+        if (response.ok) {
+            console.log('Retraining API call successful, starting progress polling');
+            
+            // Start polling with the same session ID
+            pollRetrainProgress(sessionId);
+        } else {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+    } catch (error) {
+        console.error('Retrain API call failed:', error);
+        handleRetrainError(error.message);
+    }
+}
+
+function handleRetrainingSuccess() {
+    console.log('Retraining completed successfully');
+    
+    // Mark all steps as completed
+    ['step-init', 'step-collect', 'step-quality', 'step-train', 'step-save'].forEach(stepId => {
+        updateProgressStep(stepId, 'completed');
+    });
+    
+    updateProgress(100, 'Model retraining completed successfully!');
+    
+    setTimeout(() => {
+        cleanupRetraining();
+        showSuccessMessage('Salary model retrained successfully! You can now use the updated predictions.');
+    }, 2000);
+}
+
+function handleRetrainingError(errorMessage) {
+    console.error('Retraining failed:', errorMessage);
+    
+    // Mark current step as error
+    const errorStepId = getCurrentActiveStep();
+    if (errorStepId) {
+        updateProgressStep(errorStepId, 'error');
+    }
+    
+    updateProgress(0, `Error: ${errorMessage}`, null);
+    
+    setTimeout(() => {
+        cleanupRetraining();
+        showErrorMessage(`Failed to retrain model: ${errorMessage}`);
+    }, 3000);
+}
+
+function getCurrentActiveStep() {
+    const steps = ['step-init', 'step-collect', 'step-quality', 'step-train', 'step-save'];
+    for (const stepId of steps) {
+        const step = document.getElementById(stepId);
+        if (step && step.querySelector('i').classList.contains('fa-spinner')) {
+            return stepId;
         }
     }
+    return null;
+}
 
-    function hideRetrainProgressModal() {
-        const modal = document.getElementById('retrainProgressModal');
-        if (modal) {
-            modal.classList.add('hidden');
+function cleanupRetraining() {
+    retrainingInProgress = false;
+    retrainingStartTime = null;
+    
+    // Clear polling interval
+    if (progressPollingInterval) {
+        clearInterval(progressPollingInterval);
+        progressPollingInterval = null;
+    }
+    
+    // Clear timeout
+    if (retrainingTimeoutId) {
+        clearTimeout(retrainingTimeoutId);
+        retrainingTimeoutId = null;
+    }
+    
+    // Clear any other intervals
+    if (window.retrainingIntervals) {
+        window.retrainingIntervals.forEach(intervalId => clearInterval(intervalId));
+        window.retrainingIntervals = [];
+    }
+    
+    // Hide modal after a delay
+    setTimeout(() => {
+        hideRetrainProgressModal();
+    }, 3000);
+    
+    // Reset button
+    resetRetrainButton();
+    
+    // Reset elapsed time display
+    const timeElement = document.getElementById('elapsedTime');
+    if (timeElement) {
+        timeElement.textContent = '';
+    }
+}
+
+async function cancelRetrain() {
+    try {
+        const sessionId = getOrCreateSessionId();
+        console.log('Cancelling retraining process');
+        
+        // Clear polling interval
+        if (window.retrainPollInterval) {
+            clearInterval(window.retrainPollInterval);
         }
+        
+        // Call cancel API with session ID
+        const response = await fetch('/api/cancel_retrain', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                session_id: sessionId
+            })
+        });
+        
+        if (response.ok) {
+            console.log('Retraining cancelled successfully');
+            
+            // Clear session ID
+            sessionStorage.removeItem('retraining_session_id');
+            
+            // Reset UI
+            resetRetrainUI();
+        }
+        
+    } catch (error) {
+        console.error('Cancel retrain failed:', error);
+    }
+}
+function showRetrainProgressModal() {
+    const modal = document.getElementById('retrainProgressModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        
+        // Reset progress to initial state
+        updateProgress(0, 'Initializing...');
+        const steps = ['step-init', 'step-collect', 'step-quality', 'step-train', 'step-save'];
+        steps.forEach(stepId => updateProgressStep(stepId, 'reset'));
+        
+        // Enable cancel button initially
+        const cancelButton = document.getElementById('cancelRetrainButton');
+        if (cancelButton) {
+            cancelButton.disabled = false;
+            cancelButton.textContent = 'Cancel';
+        }
+    } else {
+        console.error('Retrain progress modal not found');
+    }
+}
+
+function hideRetrainProgressModal() {
+    const modal = document.getElementById('retrainProgressModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+function resetRetrainButton() {
+    const retrainButton = document.getElementById('retrainButton');
+    if (retrainButton) {
+        retrainButton.disabled = false;
+        retrainButton.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Retrain Model';
+    }
+}
+
+function showSuccessMessage(message) {
+    showMessage(message, 'success', 'fas fa-check-circle', 'green');
+}
+
+function showErrorMessage(message) {
+    showMessage(message, 'error', 'fas fa-exclamation-circle', 'red');
+}
+
+function showWarningMessage(message) {
+    showMessage(message, 'warning', 'fas fa-info-circle', 'yellow');
+}
+
+function showMessage(message, type, iconClass, colorClass) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `fixed top-4 right-4 bg-${colorClass}-100 border border-${colorClass}-400 text-${colorClass}-700 px-4 py-3 rounded shadow-lg z-50 max-w-md`;
+    alertDiv.innerHTML = `
+        <div class="flex items-center">
+            <i class="${iconClass} mr-2 flex-shrink-0"></i>
+            <span class="flex-grow">${message}</span>
+            <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-${colorClass}-700 hover:text-${colorClass}-900 flex-shrink-0">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+    document.body.appendChild(alertDiv);
+    
+    // Auto-remove after appropriate time
+    const timeout = type === 'error' ? 10000 : 5000;
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.parentNode.removeChild(alertDiv);
+        }
+    }, timeout);
+}
+
+// Event listeners
+window.addEventListener('beforeunload', function(event) {
+    if (retrainingInProgress) {
+        event.preventDefault();
+        event.returnValue = 'Model retraining is in progress. Are you sure you want to leave?';
+        return 'Model retraining is in progress. Are you sure you want to leave?';
+    }
+});
+
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('employeeDetailsModal');
+    if (event.target === modal) {
+        hideEmployeeDetailsModal();
+    }
+    
+    const retrainModal = document.getElementById('retrainProgressModal');
+    if (event.target === retrainModal && !retrainingInProgress) {
+        hideRetrainProgressModal();
+        resetRetrainButton();
+    }
+});
+
+function getOrCreateSessionId() {
+    // Try to get existing session ID from sessionStorage (or generate new one)
+    let sessionId = sessionStorage.getItem('retraining_session_id');
+    if (!sessionId) {
+        sessionId = 'retrain_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        sessionStorage.setItem('retraining_session_id', sessionId);
+    }
+    return sessionId;
+}
+
+function cancelRetraining() {
+    if (!retrainingInProgress) {
+        return;
     }
 
-    function cancelRetraining() {
+    console.log('Cancelling retraining process');
+    cleanupRetraining();
+    showWarningMessage('Model retraining was cancelled');
+}
+
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        hideEmployeeDetailsModal();
         if (!retrainingInProgress) {
             hideRetrainProgressModal();
-            return;
-        }
-        
-        if (confirm('Are you sure you want to cancel the retraining process?')) {
-            retrainingInProgress = false;
-            
-            // Abort the API request if it's ongoing
-            if (retrainingAbortController) {
-                retrainingAbortController.abort();
-            }
-            
-            // Update UI to show cancellation
-            updateProgress(0, 'Cancelling...');
-            const cancelButton = document.getElementById('cancelRetrainButton');
-            if (cancelButton) {
-                cancelButton.disabled = true;
-                cancelButton.textContent = 'Cancelling...';
-            }
-            
-            // Reset everything after a short delay
-            setTimeout(() => {
-                hideRetrainProgressModal();
-                resetRetrainButton();
-            }, 1500);
-        }
-    }
-
-    // Helper function to show notifications
-    function showNotification(message, type = 'info') {
-        // Remove any existing notifications
-        const existingNotifications = document.querySelectorAll('.custom-notification');
-        existingNotifications.forEach(notification => notification.remove());
-        
-        // Create notification element
-        const notification = document.createElement('div');
-        notification.className = `custom-notification fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
-            type === 'success' ? 'bg-green-500 text-white' : 
-            type === 'error' ? 'bg-red-500 text-white' : 
-            'bg-blue-500 text-white'
-        }`;
-        notification.textContent = message;
-        
-        // Add to document
-        document.body.appendChild(notification);
-        
-        // Auto remove after 5 seconds
-        setTimeout(() => {
-            notification.remove();
-        }, 5000);
-    }
-
-    document.addEventListener('click', function(event) {
-        const retrainModal = document.getElementById('retrainProgressModal');
-        if (event.target === retrainModal && !retrainingInProgress) {
-            hideRetrainProgressModal();
             resetRetrainButton();
         }
-    });
+    }
+});
 
-    window.addEventListener('beforeunload', function(event) {
-        if (retrainingInProgress) {
-            event.preventDefault();
-            event.returnValue = 'Model retraining is in progress. Are you sure you want to leave?';
-            return 'Model retraining is in progress. Are you sure you want to leave?';
-        }
-    });
+// Make functions globally available
+window.retrainSalaryModel = retrainSalaryModel;
+window.cancelRetraining = cancelRetraining;
 
-
-   function estimateSalary() {
+// Salary estimation function
+function estimateSalary() {
     const jobTitle = document.getElementById('jobTitle').value;
     const location = document.getElementById('location').value;
     const experienceLevel = document.getElementById('experienceLevel').value;
@@ -1099,11 +1270,11 @@ async function retrainModel() {
                 `${formatter.format(data.prediction.predicted_range[0])} - ${formatter.format(data.prediction.predicted_range[1])}`;
             
             if (data.prediction.market_insights) {
-            document.getElementById('marketInsights').textContent = data.prediction.market_insights;
+                document.getElementById('marketInsights').textContent = data.prediction.market_insights;
             } else {
-             // Generate a basic insight if none provided
-            const insight = `The market for ${jobTitle} roles in ${location} with ${experienceLevel.replace('_', ' ').toLowerCase()} experience shows competitive salary ranges.`;
-            document.getElementById('marketInsights').textContent = insight;
+                // Generate a basic insight if none provided
+                const insight = `The market for ${jobTitle} roles in ${location} with ${experienceLevel.replace('_', ' ').toLowerCase()} experience shows competitive salary ranges.`;
+                document.getElementById('marketInsights').textContent = insight;
             }
             
             // Show competitiveness analysis if available
@@ -1173,186 +1344,167 @@ async function retrainModel() {
         document.getElementById('noEstimation').classList.remove('hidden');
     });
 }
-        function showEstimationLoading() {
-            document.getElementById('loadingEstimation').classList.remove('hidden');
-            document.getElementById('estimationResults').classList.add('hidden');
-            document.getElementById('noEstimation').classList.add('hidden');
-        }
 
-        function hideEstimationLoading() {
-            document.getElementById('loadingEstimation').classList.add('hidden');
-        }
-
-        function displayEstimationResults(prediction, competitivenessAnalysis) {
-            const resultsDiv = document.getElementById('estimationResults');
-            
-            // Update title
-            document.getElementById('estimationTitle').textContent = 
-                `${prediction.job_title} in ${prediction.location}`;
-            
-            // Update salary information
-            document.getElementById('predictedSalary').textContent = 
-                `R${prediction.predicted_annual_salary.toLocaleString()}`;
-            
-            document.getElementById('salaryRange').textContent = 
-                `R${prediction.predicted_range.min.toLocaleString()} - R${prediction.predicted_range.max.toLocaleString()}`;
-            
-            // Update market insights
-            document.getElementById('marketInsights').textContent = prediction.market_insights;
-            
-            // Handle competitiveness analysis
-            if (competitivenessAnalysis) {
-                const analysisDiv = document.getElementById('competitivenessAnalysis');
-                const resultDiv = document.getElementById('competitivenessResult');
-                
-                analysisDiv.classList.remove('hidden');
-                resultDiv.textContent = competitivenessAnalysis.analysis;
+// Employee details modal functions
+function viewEmployeeDetails(empId) {
+    // Show loading in modal content
+    const modal = document.getElementById('employeeDetailsModal');
+    const content = document.getElementById('employeeDetailsContent');
+    
+    content.innerHTML = `
+        <div class="text-center py-8">
+            <i class="fas fa-spinner fa-spin text-indigo-400 text-3xl mb-4"></i>
+            <p>Loading employee details...</p>
+        </div>
+    `;
+    
+    modal.classList.remove('hidden');
+    
+    // Fetch employee details
+    fetch(`/api/employee/${empId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayEmployeeDetails(data.employee);
             } else {
-                document.getElementById('competitivenessAnalysis').classList.add('hidden');
+                content.innerHTML = `
+                    <div class="text-center py-8">
+                        <i class="fas fa-exclamation-triangle text-red-400 text-3xl mb-4"></i>
+                        <p>Failed to load employee details</p>
+                    </div>
+                `;
             }
-            
-            resultsDiv.classList.remove('hidden');
-        }
-
-        function showEstimationError(errorMessage) {
-            const errorDiv = document.getElementById('noEstimation');
-            errorDiv.querySelector('p:last-child').textContent = errorMessage;
-            errorDiv.classList.remove('hidden');
-        }
-
-        // Employee details modal functions
-        function viewEmployeeDetails(empId) {
-            // Show loading in modal content
-            const modal = document.getElementById('employeeDetailsModal');
-            const content = document.getElementById('employeeDetailsContent');
-            
+        })
+        .catch(error => {
             content.innerHTML = `
                 <div class="text-center py-8">
-                    <i class="fas fa-spinner fa-spin text-indigo-400 text-3xl mb-4"></i>
-                    <p>Loading employee details...</p>
+                    <i class="fas fa-exclamation-triangle text-red-400 text-3xl mb-4"></i>
+                    <p>Error loading employee details</p>
                 </div>
             `;
-            
-            modal.classList.remove('hidden');
-            
-            // Fetch employee details
-            fetch(`/api/employee/${empId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        displayEmployeeDetails(data.employee);
-                    } else {
-                        content.innerHTML = `
-                            <div class="text-center py-8">
-                                <i class="fas fa-exclamation-triangle text-red-400 text-3xl mb-4"></i>
-                                <p>Failed to load employee details</p>
-                            </div>
-                        `;
-                    }
-                })
-                .catch(error => {
-                    content.innerHTML = `
-                        <div class="text-center py-8">
-                            <i class="fas fa-exclamation-triangle text-red-400 text-3xl mb-4"></i>
-                            <p>Error loading employee details</p>
-                        </div>
-                    `;
-                });
-        }
+        });
+}
 
-        function displayEmployeeDetails(employee) {
-            const content = document.getElementById('employeeDetailsContent');
-            
-            const skillsHtml = employee.skills && employee.skills.length > 0 
-                ? employee.skills.map(skill => `
-                    <span class="bg-blue-900 text-blue-200 text-xs font-medium px-2.5 py-0.5 rounded mr-2 mb-2 inline-block">
-                        ${skill}
-                    </span>
-                `).join('')
-                : '<span class="text-gray-400">No skills listed</span>';
-            
-            content.innerHTML = `
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+function displayEmployeeDetails(employee) {
+    const content = document.getElementById('employeeDetailsContent');
+    
+    const skillsHtml = employee.skills && employee.skills.length > 0 
+        ? employee.skills.map(skill => `
+            <span class="bg-blue-900 text-blue-200 text-xs font-medium px-2.5 py-0.5 rounded mr-2 mb-2 inline-block">
+                ${skill}
+            </span>
+        `).join('')
+        : '<span class="text-gray-400">No skills listed</span>';
+    
+    content.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <h4 class="font-bold text-lg mb-4">Basic Information</h4>
+                <div class="space-y-3">
                     <div>
-                        <h4 class="font-bold text-lg mb-4">Basic Information</h4>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-300">Employee ID</label>
-                                <p class="text-white">${employee.emp_id}</p>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-300">Name</label>
-                                <p class="text-white">${employee.name}</p>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-300">Email</label>
-                                <p class="text-white">${employee.email}</p>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-300">Role</label>
-                                <span class="bg-blue-900 text-blue-200 text-xs font-medium px-2.5 py-0.5 rounded">
-                                    ${employee.role}
-                                </span>
-                            </div>
-                        </div>
+                        <label class="block text-sm font-medium text-gray-300">Employee ID</label>
+                        <p class="text-white">${employee.emp_id}</p>
                     </div>
                     <div>
-                        <h4 class="font-bold text-lg mb-4">Performance & Skills</h4>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-300">Experience</label>
-                                <p class="text-white">${employee.experience || 0} years</p>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-300">Tasks Completed</label>
-                                <p class="text-white">${employee.tasks_completed || 0}</p>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-300">Success Rate</label>
-                                <p class="text-white">${employee.success_rate || 0}%</p>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-300">Skills</label>
-                                <div class="mt-2">
-                                    ${skillsHtml}
-                                </div>
-                            </div>
+                        <label class="block text-sm font-medium text-gray-300">Name</label>
+                        <p class="text-white">${employee.name}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300">Email</label>
+                        <p class="text-white">${employee.email}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300">Role</label>
+                        <span class="bg-blue-900 text-blue-200 text-xs font-medium px-2.5 py-0.5 rounded">
+                            ${employee.role}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <h4 class="font-bold text-lg mb-4">Performance & Skills</h4>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300">Experience</label>
+                        <p class="text-white">${employee.experience || 0} years</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300">Tasks Completed</label>
+                        <p class="text-white">${employee.tasks_completed || 0}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300">Success Rate</label>
+                        <p class="text-white">${employee.success_rate || 0}%</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300">Skills</label>
+                        <div class="mt-2">
+                            ${skillsHtml}
                         </div>
                     </div>
                 </div>
-            `;
+            </div>
+        </div>
+    `;
+}
+
+function editEmployeeSkills(empId) {
+    // This would open a modal or navigate to an edit page
+    alert(`Edit skills functionality for employee ${empId} - to be implemented`);
+}
+
+function hideEmployeeDetailsModal() {
+    const modal = document.getElementById('employeeDetailsModal');
+    modal.classList.add('hidden');
+}
+
+// Event listeners
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('employeeDetailsModal');
+    if (event.target === modal) {
+        hideEmployeeDetailsModal();
+    }
+    
+    const retrainModal = document.getElementById('retrainProgressModal');
+    if (event.target === retrainModal && !retrainingInProgress) {
+        hideRetrainProgressModal();
+        resetRetrainButton();
+    }
+});
+
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        hideEmployeeDetailsModal();
+        if (!retrainingInProgress) {
+            hideRetrainProgressModal();
+            resetRetrainButton();
         }
+    }
+});
 
-        function editEmployeeSkills(empId) {
-            // This would open a modal or navigate to an edit page
-            alert(`Edit skills functionality for employee ${empId} - to be implemented`);
-        }
+window.addEventListener('beforeunload', function(event) {
+    if (retrainingInProgress) {
+        event.preventDefault();
+        event.returnValue = 'Model retraining is in progress. Are you sure you want to leave?';
+        return 'Model retraining is in progress. Are you sure you want to leave?';
+    }
+});
 
-        function hideEmployeeDetailsModal() {
-            const modal = document.getElementById('employeeDetailsModal');
-            modal.classList.add('hidden');
-        }
+// Prevent form submission on Enter key
+document.getElementById('salaryEstimationForm')?.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        estimateSalary();
+    }
+});
 
-        // Close modal when clicking outside
-        document.addEventListener('click', function(event) {
-            const modal = document.getElementById('employeeDetailsModal');
-            if (event.target === modal) {
-                hideEmployeeDetailsModal();
-            }
-            
-            const retrainModal = document.getElementById('retrainProgressModal');
-            if (event.target === retrainModal && !retrainingInProgress) {
-                hideRetrainProgressModal();
-            }
-        });
-
-        // Prevent form submission on Enter key
-        document.getElementById('salaryEstimationForm')?.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                estimateSalary();
-            }
-        });
+// Make functions globally available
+window.retrainSalaryModel = retrainSalaryModel;
+window.cancelRetraining = cancelRetraining;
+window.estimateSalary = estimateSalary;
+window.viewEmployeeDetails = viewEmployeeDetails;
+window.editEmployeeSkills = editEmployeeSkills;
+window.hideEmployeeDetailsModal = hideEmployeeDetailsModal;
     </script>
 </body>
 </html>
