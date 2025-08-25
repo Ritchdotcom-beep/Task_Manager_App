@@ -975,12 +975,23 @@ def process_employee_recommendation(rec_id, action, processed_by, notes=''):
 
 @app.route('/human_resource_dashboard')
 def human_resource_dashboard():
+    # Debug session information
+    print(f"DEBUG: HR Dashboard - Session data: {dict(session)}")
+    
+    if 'emp_id' not in session:
+        flash('Please log in to access the HR dashboard', 'warning')
+        return redirect(url_for('login'))
+    
     # Normalize role comparison
     normalized_role = session.get('role', '').lower().replace(' ', '_')
-    if 'emp_id' not in session or normalized_role != 'human_resource':
+    print(f"DEBUG: HR Dashboard - Normalized role: {normalized_role}")
+    
+    if normalized_role != 'human_resource':
         flash('Access restricted to HR personnel', 'danger')
+        print(f"DEBUG: HR Dashboard - Access denied. Expected 'human_resource', got '{normalized_role}'")
         return redirect(url_for('index'))
     
+    # Rest of the function remains the same...
     # Get employee data
     employee_data = get_employee(session['emp_id'])
     
@@ -1098,65 +1109,140 @@ def reject_employee(emp_id, reason, rejected_by):
 @app.route('/hr/create_employee', methods=['GET', 'POST'])
 def hr_create_employee():
     """HR creates employee recommendation (forwarded to admin)"""
-    if 'emp_id' not in session or session['role'] != 'human resource':
-        flash('Unauthorized access')
+    
+    # Debug: Print session information
+    print(f"DEBUG: Session data: {dict(session)}")
+    print(f"DEBUG: Request method: {request.method}")
+    print(f"DEBUG: Content-Type: {request.headers.get('Content-Type', 'Not set')}")
+    print(f"DEBUG: Is JSON request: {request.is_json}")
+    
+    # Check if user is logged in
+    if 'emp_id' not in session:
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Please log in to access this page'}), 401
+        flash('Please log in to access this page', 'warning')
+        return redirect(url_for('login'))
+    
+    # Normalize role comparison - handle different formats
+    user_role = session.get('role', '').lower().replace(' ', '_')
+    print(f"DEBUG: Normalized user role: {user_role}")
+    
+    if user_role != 'human_resource':
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Access restricted to HR personnel only'}), 403
+        flash('Access restricted to HR personnel only', 'danger')
+        print(f"DEBUG: Access denied. Expected 'human_resource', got '{user_role}'")
         return redirect(url_for('index'))
     
     if request.method == 'POST':
-        name = request.form.get('name')
-        email = request.form.get('email')
-        suggested_role = request.form.get('requested_role')
-        
-        # Get skills as a list from the comma-separated input
-        skills_input = request.form.get('skills', '').strip()
-        skills = [skill.strip() for skill in skills_input.split(',')] if skills_input else []
-        
-        # Get experience as an integer
-        experience_input = request.form.get('experience', '').strip()
-        experience = int(experience_input) if experience_input and experience_input.isdigit() else 0
-        
-        # Create employee recommendation
-        success, result = create_employee_recommendation(
-            name=name,
-            email=email,
-            suggested_role=suggested_role,
-            skills=skills,
-            experience=experience,
-            recommended_by=session['emp_id']
-        )
-        
-        if not success:
-            flash(f'Failed to submit employee recommendation: {result}', 'danger')
-        else:
-            flash(f'Employee recommendation submitted for {name}. Forwarded to admin for approval.', 'success')
+        try:
+            # Handle both JSON and form data
+            if request.is_json:
+                # JSON request from AJAX
+                data = request.get_json()
+                name = data.get('name')
+                email = data.get('email')
+                suggested_role = data.get('requested_role')
+                skills_input = data.get('skills', '').strip()
+                experience_input = str(data.get('experience', '')).strip()
+                print(f"DEBUG: Processing JSON data: {data}")
+            else:
+                # Traditional form submission
+                name = request.form.get('name')
+                email = request.form.get('email')
+                suggested_role = request.form.get('requested_role')
+                skills_input = request.form.get('skills', '').strip()
+                experience_input = request.form.get('experience', '').strip()
+                print(f"DEBUG: Processing form data")
             
-            # Notify all admins about the new recommendation
-            try:
-                # Get all admin users
-                all_employees = get_all_employees()
-                admin_emails = [emp['email'] for emp in all_employees if emp.get('role') == 'admin']
+            # Validate required fields
+            if not all([name, email, suggested_role]):
+                error_msg = 'Please fill in all required fields (name, email, and role)'
+                if request.is_json:
+                    return jsonify({'success': False, 'error': error_msg}), 400
+                flash(error_msg, 'danger')
+                return render_template('hr/create_employee.html', 
+                                     skills=get_all_skills(), 
+                                     available_roles=get_available_roles())
+            
+            # Process skills
+            skills = [skill.strip() for skill in skills_input.split(',')] if skills_input else []
+            
+            # Process experience
+            experience = int(experience_input) if experience_input and experience_input.isdigit() else 0
+            
+            print(f"DEBUG: Creating recommendation for {name} with role {suggested_role}")
+            print(f"DEBUG: Skills: {skills}")
+            print(f"DEBUG: Experience: {experience}")
+            
+            # Create employee recommendation
+            success, result = create_employee_recommendation(
+                name=name,
+                email=email,
+                suggested_role=suggested_role,
+                skills=skills,
+                experience=experience,
+                recommended_by=session['emp_id']
+            )
+            
+            if not success:
+                error_msg = f'Failed to submit employee recommendation: {result}'
+                print(f"DEBUG: Recommendation creation failed: {result}")
                 
-                # Send notification emails to admins
-                for admin_email in admin_emails:
-                    send_new_application_notification(admin_email, name, email, suggested_role)
-            except Exception as e:
-                print(f"Failed to send admin notifications: {str(e)}")
-        
-        return redirect(url_for('human_resource_dashboard'))
-    # Get project types for skill suggestions
-    project_types, project_type_details = get_project_types()
-    all_skills = []
-    for skills_list in project_type_details.values():
-        all_skills.extend(skills_list)
-    # Remove duplicates while preserving order
-    unique_skills = list(dict.fromkeys(all_skills))
+                if request.is_json:
+                    # Check if it's a duplicate email error (409 status)
+                    if 'already exists' in str(result).lower() or 'duplicate' in str(result).lower():
+                        return jsonify({'success': False, 'error': result}), 409
+                    return jsonify({'success': False, 'error': result}), 400
+                
+                flash(error_msg, 'danger')
+                return render_template('hr/create_employee.html',
+                                     skills=get_all_skills(), 
+                                     available_roles=get_available_roles())
+            else:
+                success_msg = f'Employee recommendation submitted for {name}. Forwarded to admin for approval.'
+                print(f"DEBUG: Recommendation created successfully")
+                
+                # Notify all admins about the new recommendation
+                try:
+                    all_employees = get_all_employees()
+                    admin_emails = [emp['email'] for emp in all_employees if emp.get('role') == 'admin']
+                    
+                    print(f"DEBUG: Found {len(admin_emails)} admin emails: {admin_emails}")
+                    
+                    # Send notification emails to admins
+                    for admin_email in admin_emails:
+                        send_new_application_notification(admin_email, name, email, suggested_role)
+                        print(f"DEBUG: Sent notification to {admin_email}")
+                except Exception as e:
+                    print(f"Failed to send admin notifications: {str(e)}")
+                
+                if request.is_json:
+                    return jsonify({
+                        'success': True, 
+                        'message': success_msg,
+                        'recommendation': result if isinstance(result, dict) else {}
+                    }), 200
+                
+                flash(success_msg, 'success')
+                return redirect(url_for('human_resource_dashboard'))
+                
+        except Exception as e:
+            error_msg = f'An error occurred: {str(e)}'
+            print(f"DEBUG: Exception in create_employee: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+            if request.is_json:
+                return jsonify({'success': False, 'error': error_msg}), 500
+            
+            flash(error_msg, 'danger')
+            return render_template('hr/create_employee.html')
     
-    # Available roles that can be recommended
-    available_roles = ['developer', 'project manager', 'data analyst', 'devops engineer']
+    # GET request - show the form
+    print(f"DEBUG: Rendering create_employee.html template")
     
-    return render_template('hr/create_employee.html', 
-                         skills=unique_skills, 
-                         available_roles=available_roles)
+    return render_template('hr/create_employee.html')
 
 @app.route('/admin/create_employee', methods=['GET', 'POST'])
 def create_employee():

@@ -749,6 +749,235 @@
             return div.innerHTML;
         }
 
+async function handleFormSubmission(formData) {
+    try {
+        debug('Submitting form data as JSON...');
+        
+        // Show loading state
+        const submitBtn = document.getElementById('submit-btn');
+        const nextBtn = document.getElementById('next-btn');
+        if (submitBtn) submitBtn.disabled = true;
+        if (nextBtn) nextBtn.disabled = true;
+        
+        // Add loading spinner to submit button
+        const originalSubmitText = submitBtn ? submitBtn.innerHTML : 'Submit';
+        if (submitBtn) {
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Submitting...';
+        }
+        
+        // Convert FormData to JSON
+        const jsonData = {};
+        formData.forEach((value, key) => {
+            jsonData[key] = value;
+        });
+        
+        // Add skills to JSON data
+        const skillsInput = document.getElementById('skills');
+        if (skillsInput) {
+            jsonData.skills = skillsInput.value;
+        }
+        
+        console.log('Sending JSON data:', jsonData);
+        
+        const response = await fetch('/hr/create_employee', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(jsonData)
+        });
+        
+        console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers.get('Content-Type'));
+        
+        // Check if response is JSON
+        const contentType = response.headers.get('Content-Type') || '';
+        const isJsonResponse = contentType.includes('application/json');
+        
+        if (isJsonResponse) {
+            // Handle JSON response
+            const result = await response.json();
+            console.log('JSON response:', result);
+            
+            if (response.ok && result.success) {
+                // Success
+                showFlashMessage('Success', result.message, 'success');
+                setTimeout(() => {
+                    window.location.href = '/human_resource_dashboard';
+                }, 2000);
+            } else {
+                // Error with JSON response
+                handleErrorResponse(response.status, result.error || 'Unknown error');
+            }
+        } else {
+            // Handle non-JSON response (HTML, redirect, etc.)
+            const responseText = await response.text();
+            console.log('Non-JSON response (first 500 chars):', responseText.substring(0, 500));
+            
+            if (response.status === 200) {
+                // Might be a redirect or HTML page
+                if (responseText.includes('human_resource_dashboard') || responseText.includes('success')) {
+                    showFlashMessage('Success', 'Employee recommendation submitted successfully!', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/human_resource_dashboard';
+                    }, 2000);
+                } else {
+                    showFlashMessage('Error', 'Unexpected response from server. Please check the result manually.', 'error');
+                }
+            } else {
+                // Error with HTML response
+                handleErrorResponse(response.status, 'Server returned an error. Please try again.');
+            }
+        }
+        
+    } catch (error) {
+        console.error('Submission error:', error);
+        showFlashMessage('Network Error', 'Failed to connect to server. Please check your connection and try again.', 'error');
+    } finally {
+        // Restore button state
+        const submitBtn = document.getElementById('submit-btn');
+        const nextBtn = document.getElementById('next-btn');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalSubmitText;
+        }
+        if (nextBtn) nextBtn.disabled = false;
+    }
+}
+
+// Helper function to handle error responses
+function handleErrorResponse(status, errorMessage) {
+    console.log('Handling error response:', status, errorMessage);
+    
+    if (status === 409) {
+        // Duplicate email error
+        showFlashMessage('Duplicate Email', errorMessage, 'error');
+        
+        // Highlight the email field
+        const emailField = document.getElementById('email');
+        if (emailField) {
+            emailField.classList.add('border-red-500');
+            emailField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        const emailError = document.getElementById('email-error');
+        if (emailError) {
+            emailError.textContent = errorMessage;
+            emailError.classList.remove('hidden');
+        }
+    } else if (status === 400) {
+        // Validation error
+        showFlashMessage('Validation Error', errorMessage, 'error');
+    } else if (status === 401) {
+        // Unauthorized
+        showFlashMessage('Authentication Required', 'Please log in to continue', 'error');
+        setTimeout(() => {
+            window.location.href = '/login';
+        }, 2000);
+    } else if (status === 403) {
+        // Forbidden
+        showFlashMessage('Access Denied', errorMessage, 'error');
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 2000);
+    } else {
+        // Other errors
+        showFlashMessage('Error', errorMessage || 'An unexpected error occurred. Please try again.', 'error');
+    }
+}
+
+// Enhanced flash message function
+function showFlashMessage(title, message, type = 'error') {
+    console.log('Showing flash message:', title, message, type);
+    
+    // Create or get flash message container
+    let flashContainer = document.getElementById('flash-message-container');
+    if (!flashContainer) {
+        flashContainer = document.createElement('div');
+        flashContainer.id = 'flash-message-container';
+        flashContainer.className = 'fixed top-20 right-4 z-50 space-y-2';
+        flashContainer.style.maxWidth = '450px';
+        document.body.appendChild(flashContainer);
+    }
+    
+    // Create message element
+    const messageElement = document.createElement('div');
+    const bgClass = type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-blue-600';
+    const iconClass = type === 'error' ? 'fa-exclamation-circle' : type === 'success' ? 'fa-check-circle' : 'fa-info-circle';
+    
+    messageElement.className = `p-4 rounded-lg shadow-lg transform transition-all duration-300 ${bgClass} text-white`;
+    messageElement.style.maxWidth = '400px';
+    messageElement.innerHTML = `
+        <div class="flex items-start">
+            <i class="fas ${iconClass} mr-3 mt-1"></i>
+            <div class="flex-1">
+                <h4 class="font-bold text-sm">${title}</h4>
+                <p class="text-sm mt-1">${message}</p>
+            </div>
+            <button type="button" class="ml-4 text-white hover:text-gray-200" onclick="this.parentElement.parentElement.remove()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+    
+    // Add to container
+    flashContainer.appendChild(messageElement);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (messageElement.parentElement) {
+            messageElement.style.opacity = '0';
+            messageElement.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                if (messageElement.parentElement) {
+                    messageElement.parentElement.removeChild(messageElement);
+                }
+            }, 300);
+        }
+    }, 5000);
+}
+
+// Debug function
+function debug(message) {
+    console.log('[HR Create Employee]', message);
+}
+
+// Form submission event listener
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('recommendEmployeeForm');
+    if (form) {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            console.log('Form submission started');
+            
+            // Validate all fields first
+            if (typeof validateCurrentStep === 'function' && !validateCurrentStep()) {
+                if (typeof scrollToFirstError === 'function') {
+                    scrollToFirstError();
+                }
+                return;
+            }
+            
+            // Create FormData object
+            const formData = new FormData(this);
+            
+            // Submit the form via AJAX with JSON
+            await handleFormSubmission(formData);
+        });
+    } else {
+        console.error('Form with ID "recommendEmployeeForm" not found');
+    }
+});
+
+// Make functions globally accessible
+window.showFlashMessage = showFlashMessage;
+window.handleFormSubmission = handleFormSubmission;
+window.debug = debug;
+
+
+
         // Make removeSkill globally accessible
         window.removeSkill = removeSkill;
     </script>
