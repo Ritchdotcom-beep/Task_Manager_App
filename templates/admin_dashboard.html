@@ -7,32 +7,77 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        .gradient-bg {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
         .card-hover:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
         }
-        .animate-pulse-slow {
-            animation: pulse 3s infinite;
+        .transition-card {
+            transition: all 0.3s ease;
         }
+        
+        /* Dark theme overrides */
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+        
+        .dark-card {
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+            border: 1px solid #333;
+        }
+        
+        .dark-nav {
+            background-color: #1f2937;
+        }
+        
+        .dark-hover:hover {
+            background-color: #2a2a2a;
+        }
+        
+        .dark-input {
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+            border-color: #444;
+        }
+        
+        .dark-input::placeholder {
+            color: #888;
+        }
+        
+        .dark-input:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+        
+        .dark-table {
+            background-color: #1e1e1e;
+        }
+        
+        .dark-table th {
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+            border-color: #444;
+        }
+        
+        .dark-table td {
+            border-color: #444;
+            color: #e0e0e0;
+        }
+        
+        .dark-table tr:hover {
+            background-color: #2a2a2a;
+        }
+        
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        
         .fade-in {
             animation: fadeIn 0.6s ease-out;
         }
-        .loading-skeleton {
-            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-            background-size: 200% 100%;
-            animation: loading 1.5s infinite;
-        }
-        @keyframes loading {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
+        
         .notification {
             position: fixed;
             top: 20px;
@@ -45,93 +90,93 @@
             transform: translateX(400px);
             transition: transform 0.3s ease-in-out;
         }
+        
         .notification.show {
             transform: translateX(0);
         }
+        
         .notification.success { background-color: #10b981; }
         .notification.error { background-color: #ef4444; }
         .notification.warning { background-color: #f59e0b; }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
+<body class="bg-black">
     <!-- Navigation -->
-    <nav class="gradient-bg shadow-lg">
-        <div class="max-w-7xl mx-auto px-4">
-            <div class="flex justify-between items-center py-4">
-                <div class="flex items-center space-x-4">
-                    <i class="fas fa-shield-alt text-white text-2xl"></i>
-                    <h1 class="text-white text-xl font-bold">Admin Dashboard</h1>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <span class="text-white" id="adminName">{{ current_user.name }}</span>
-                    <a href="{{ url_for('logout') }}" class="bg-white text-purple-600 px-4 py-2 rounded-lg hover:bg-gray-100 transition duration-300">
-                        <i class="fas fa-sign-out-alt mr-2"></i>Logout
-                    </a>
-                </div>
+    <nav class="dark-nav text-white p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-4">
+                <i class="fas fa-shield-alt text-2xl"></i>
+                <h1 class="text-xl font-bold">Admin Dashboard</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span id="adminName">{{ current_user.name }}</span>
+                <a href="{{ url_for('logout') }}" class="bg-indigo-700 px-4 py-2 rounded hover:bg-indigo-800 transition duration-300">
+                    <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                </a>
             </div>
         </div>
     </nav>
 
     <!-- Main Content -->
-    <div class="max-w-7xl mx-auto px-4 py-8">
+    <div class="container mx-auto px-4 py-8">
         <!-- Statistics Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <!-- Total Employees -->
-            <div class="bg-white rounded-xl shadow-lg p-6 card-hover transition-all duration-300 fade-in">
-                <div class="flex items-center justify-between">
+            <div class="dark-card rounded-lg shadow p-6 transition-card card-hover fade-in">
+                <div class="flex justify-between items-start">
                     <div>
-                        <p class="text-gray-600 text-sm font-medium">Total Employees</p>
-                        <p class="text-3xl font-bold text-gray-800" id="totalEmployees">
+                        <p class="text-gray-400 text-sm font-medium">Total Employees</p>
+                        <p class="text-3xl font-bold text-white" id="totalEmployees">
                             {{ employees|length }}
                         </p>
                     </div>
-                    <div class="bg-blue-100 p-3 rounded-full">
-                        <i class="fas fa-users text-blue-600 text-xl"></i>
+                    <div class="bg-blue-900 p-3 rounded-full">
+                        <i class="fas fa-users text-blue-400 text-xl"></i>
                     </div>
                 </div>
             </div>
 
             <!-- Pending Recommendations -->
-            <div class="bg-white rounded-xl shadow-lg p-6 card-hover transition-all duration-300 fade-in">
-                <div class="flex items-center justify-between">
+            <div class="dark-card rounded-lg shadow p-6 transition-card card-hover fade-in">
+                <div class="flex justify-between items-start">
                     <div>
-                        <p class="text-gray-600 text-sm font-medium">Pending Recommendations</p>
-                        <p class="text-3xl font-bold text-orange-600" id="pendingRecommendations">
+                        <p class="text-gray-400 text-sm font-medium">Pending Recommendations</p>
+                        <p class="text-3xl font-bold text-orange-400" id="pendingRecommendations">
                             {{ pending_recommendations|length }}
                         </p>
                     </div>
-                    <div class="bg-orange-100 p-3 rounded-full">
-                        <i class="fas fa-clock text-orange-600 text-xl"></i>
+                    <div class="bg-yellow-900 p-3 rounded-full">
+                        <i class="fas fa-clock text-yellow-400 text-xl"></i>
                     </div>
                 </div>
             </div>
 
             <!-- Active Tasks -->
-            <div class="bg-white rounded-xl shadow-lg p-6 card-hover transition-all duration-300 fade-in">
-                <div class="flex items-center justify-between">
+            <div class="dark-card rounded-lg shadow p-6 transition-card card-hover fade-in">
+                <div class="flex justify-between items-start">
                     <div>
-                        <p class="text-gray-600 text-sm font-medium">Active Tasks</p>
-                        <p class="text-3xl font-bold text-green-600" id="activeTasks">
+                        <p class="text-gray-400 text-sm font-medium">Active Tasks</p>
+                        <p class="text-3xl font-bold text-green-400" id="activeTasks">
                             {{ active_tasks_count }}
                         </p>
                     </div>
-                    <div class="bg-green-100 p-3 rounded-full">
-                        <i class="fas fa-tasks text-green-600 text-xl"></i>
+                    <div class="bg-green-900 p-3 rounded-full">
+                        <i class="fas fa-tasks text-green-400 text-xl"></i>
                     </div>
                 </div>
             </div>
 
             <!-- System Health -->
-            <div class="bg-white rounded-xl shadow-lg p-6 card-hover transition-all duration-300 fade-in">
-                <div class="flex items-center justify-between">
+            <div class="dark-card rounded-lg shadow p-6 transition-card card-hover fade-in">
+                <div class="flex justify-between items-start">
                     <div>
-                        <p class="text-gray-600 text-sm font-medium">System Health</p>
-                        <p class="text-3xl font-bold text-purple-600" id="systemHealth">
-                            <span class="text-green-600">Healthy</span>
+                        <p class="text-gray-400 text-sm font-medium">System Health</p>
+                        <p class="text-3xl font-bold text-purple-400" id="systemHealth">
+                            <span class="text-green-400">Healthy</span>
                         </p>
                     </div>
-                    <div class="bg-purple-100 p-3 rounded-full">
-                        <i class="fas fa-heartbeat text-purple-600 text-xl"></i>
+                    <div class="bg-purple-900 p-3 rounded-full">
+                        <i class="fas fa-heartbeat text-purple-400 text-xl"></i>
                     </div>
                 </div>
             </div>
@@ -141,9 +186,9 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <!-- Employee Management -->
             <div class="lg:col-span-2">
-                <div class="bg-white rounded-xl shadow-lg p-6 fade-in">
+                <div class="dark-card rounded-lg shadow p-6 fade-in">
                     <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-xl font-bold text-gray-800">Employee Management</h2>
+                        <h2 class="text-xl font-bold text-white">Employee Management</h2>
                         <a href="{{ url_for('create_employee') }}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition duration-300">
                             <i class="fas fa-plus mr-2"></i>Add HR Employee
                         </a>
@@ -151,60 +196,60 @@
 
                     <!-- Employee Table -->
                     <div class="overflow-x-auto">
-                        <table class="min-w-full table-auto">
+                        <table class="min-w-full dark-table">
                             <thead>
-                                <tr class="bg-gray-50">
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Success Rate</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tasks</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">Employee</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">Role</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">Success Rate</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">Tasks</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody id="employeeTableBody" class="bg-white divide-y divide-gray-200">
+                            <tbody id="employeeTableBody" class="divide-y divide-gray-700">
                                 {% for employee in employees %}
-                                <tr class="hover:bg-gray-50 transition-colors duration-200">
+                                <tr class="dark-hover transition-colors duration-200">
                                     <td class="px-4 py-4">
                                         <div class="flex items-center">
                                             <div class="w-10 h-10 bg-gradient-to-br from-purple-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
                                                 {{ employee.name.split(' ')|map('first')|join('') }}
                                             </div>
                                             <div class="ml-3">
-                                                <p class="text-sm font-medium text-gray-900">{{ employee.name }}</p>
-                                                <p class="text-sm text-gray-500">{{ employee.email }}</p>
+                                                <p class="text-sm font-medium text-white">{{ employee.name }}</p>
+                                                <p class="text-sm text-gray-400">{{ employee.email }}</p>
                                             </div>
                                         </div>
                                     </td>
                                     <td class="px-4 py-4">
                                         <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full 
-                                            {% if employee.role == 'developer' %}bg-blue-100 text-blue-800
-                                            {% elif employee.role == 'project manager' %}bg-green-100 text-green-800
-                                            {% elif employee.role == 'human resource' %}bg-purple-100 text-purple-800
-                                            {% elif employee.role == 'admin' %}bg-red-100 text-red-800
-                                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                            {% if employee.role == 'developer' %}bg-blue-900 text-blue-200
+                                            {% elif employee.role == 'project manager' %}bg-green-900 text-green-200
+                                            {% elif employee.role == 'human resource' %}bg-purple-900 text-purple-200
+                                            {% elif employee.role == 'admin' %}bg-red-900 text-red-200
+                                            {% else %}bg-gray-900 text-gray-200{% endif %}">
                                             {{ employee.role }}
                                         </span>
                                     </td>
                                     <td class="px-4 py-4">
                                         <div class="flex items-center">
-                                            <div class="w-16 bg-gray-200 rounded-full h-2 mr-2">
-                                                <div class="bg-green-600 h-2 rounded-full transition-all duration-300" style="width: {{ employee.success_rate }}%"></div>
+                                            <div class="w-16 bg-gray-700 rounded-full h-2 mr-2">
+                                                <div class="bg-green-500 h-2 rounded-full transition-all duration-300" style="width: {{ employee.success_rate }}%"></div>
                                             </div>
-                                            <span class="text-sm font-medium text-gray-900">{{ employee.success_rate }}%</span>
+                                            <span class="text-sm font-medium text-white">{{ employee.success_rate }}%</span>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-4 text-sm text-gray-900">
+                                    <td class="px-4 py-4 text-sm text-white">
                                         {{ employee.tasks_completed or 0 }}
                                     </td>
                                     <td class="px-4 py-4">
                                         <div class="flex space-x-2">
-                                            <button onclick="viewEmployee('{{ employee.emp_id }}')" class="text-blue-600 hover:text-blue-800 transition-colors duration-200">
+                                            <button onclick="viewEmployee('{{ employee.emp_id }}')" class="text-blue-400 hover:text-blue-300 transition-colors duration-200">
                                                 <i class="fas fa-eye"></i>
                                             </button>
-                                            <a href="{{ url_for('edit_employee', emp_id=employee.emp_id) }}" class="text-green-600 hover:text-green-800 transition-colors duration-200">
+                                            <a href="{{ url_for('edit_employee', emp_id=employee.emp_id) }}" class="text-green-400 hover:text-green-300 transition-colors duration-200">
                                                 <i class="fas fa-edit"></i>
                                             </a>
-                                            <button onclick="deleteEmployee('{{ employee.emp_id }}')" class="text-red-600 hover:text-red-800 transition-colors duration-200">
+                                            <button onclick="deleteEmployee('{{ employee.emp_id }}')" class="text-red-400 hover:text-red-300 transition-colors duration-200">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </div>
@@ -219,27 +264,27 @@
 
             <!-- Recommendations Panel -->
             <div class="lg:col-span-1">
-                <div class="bg-white rounded-xl shadow-lg p-6 fade-in">
+                <div class="dark-card rounded-lg shadow p-6 fade-in">
                     <div class="flex items-center justify-between mb-6">
-                        <h2 class="text-xl font-bold text-gray-800">Pending Recommendations</h2>
-                        <span class="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium" id="recommendationCount">{{ pending_recommendations|length }}</span>
+                        <h2 class="text-xl font-bold text-white">Pending Recommendations</h2>
+                        <span class="bg-yellow-900 text-yellow-200 px-3 py-1 rounded-full text-sm font-medium" id="recommendationCount">{{ pending_recommendations|length }}</span>
                     </div>
 
                     <div id="recommendationsContainer" class="space-y-4">
                         {% if pending_recommendations %}
                             {% for rec in pending_recommendations %}
-                            <div class="border rounded-lg p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="viewRecommendation({{ rec.id }})">
+                            <div class="border border-gray-700 rounded-lg p-4 dark-hover transition-all duration-200 cursor-pointer" onclick="viewRecommendation({{ rec.id }})">
                                 <div class="flex items-start justify-between">
                                     <div class="flex-1">
-                                        <h4 class="font-medium text-gray-900">{{ rec.name }}</h4>
-                                        <p class="text-sm text-gray-600">{{ rec.suggested_role }}</p>
+                                        <h4 class="font-medium text-white">{{ rec.name }}</h4>
+                                        <p class="text-sm text-gray-400">{{ rec.suggested_role }}</p>
                                         <p class="text-xs text-gray-500 mt-1">{{ format_date(rec.created_at) }}</p>
                                     </div>
                                     <div class="flex space-x-2">
-                                        <button onclick="approveRecommendation({{ rec.id }}, event)" class="text-green-600 hover:text-green-800 text-sm">
+                                        <button onclick="approveRecommendation({{ rec.id }}, event)" class="text-green-400 hover:text-green-300 text-sm">
                                             <i class="fas fa-check"></i>
                                         </button>
-                                        <button onclick="rejectRecommendation({{ rec.id }}, event)" class="text-red-600 hover:text-red-800 text-sm">
+                                        <button onclick="rejectRecommendation({{ rec.id }}, event)" class="text-red-400 hover:text-red-300 text-sm">
                                             <i class="fas fa-times"></i>
                                         </button>
                                     </div>
@@ -248,8 +293,8 @@
                             {% endfor %}
                         {% else %}
                             <div class="text-center py-8">
-                                <i class="fas fa-inbox text-4xl text-gray-300 mb-2"></i>
-                                <p class="text-gray-500">No pending recommendations</p>
+                                <i class="fas fa-inbox text-4xl text-gray-500 mb-2"></i>
+                                <p class="text-gray-400">No pending recommendations</p>
                             </div>
                         {% endif %}
                     </div>
@@ -259,21 +304,21 @@
 
         <!-- Recent Activity -->
         <div class="mt-8">
-            <div class="bg-white rounded-xl shadow-lg p-6 fade-in">
-                <h2 class="text-xl font-bold text-gray-800 mb-6">Recent Activity</h2>
+            <div class="dark-card rounded-lg shadow p-6 fade-in">
+                <h2 class="text-xl font-bold text-white mb-6">Recent Activity</h2>
                 <div id="recentActivityContainer" class="space-y-4">
                     {% if recent_processed %}
                         {% for activity in recent_processed %}
-                        <div class="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors duration-200">
-                            <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <div class="flex items-center space-x-3 p-3 rounded-lg dark-hover transition-colors duration-200">
+                            <div class="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center">
                                 <i class="fas 
-                                    {% if activity.status == 'approved' %}fa-thumbs-up text-green-600
-                                    {% else %}fa-times text-red-600{% endif %} text-sm"></i>
+                                    {% if activity.status == 'approved' %}fa-thumbs-up text-green-400
+                                    {% else %}fa-times text-red-400{% endif %} text-sm"></i>
                             </div>
                             <div class="flex-1">
-                                <p class="text-sm text-gray-900">
+                                <p class="text-sm text-white">
                                     {{ activity.name }} - {{ activity.suggested_role }} 
-                                    <span class="{% if activity.status == 'approved' %}text-green-600{% else %}text-red-600{% endif %}">
+                                    <span class="{% if activity.status == 'approved' %}text-green-400{% else %}text-red-400{% endif %}">
                                         ({{ activity.status }})
                                     </span>
                                 </p>
@@ -283,8 +328,8 @@
                         {% endfor %}
                     {% else %}
                         <div class="text-center py-8">
-                            <i class="fas fa-history text-4xl text-gray-300 mb-2"></i>
-                            <p class="text-gray-500">No recent activity</p>
+                            <i class="fas fa-history text-4xl text-gray-500 mb-2"></i>
+                            <p class="text-gray-400">No recent activity</p>
                         </div>
                     {% endif %}
                 </div>
@@ -293,12 +338,12 @@
     </div>
 
     <!-- Employee Detail Modal -->
-    <div id="employeeModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50">
+    <div id="employeeModal" class="fixed inset-0 bg-black bg-opacity-75 hidden z-50">
         <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="bg-white rounded-xl max-w-2xl w-full p-6">
+            <div class="dark-card rounded-xl max-w-2xl w-full p-6">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-bold text-gray-800">Employee Details</h3>
-                    <button onclick="closeEmployeeModal()" class="text-gray-400 hover:text-gray-600">
+                    <h3 class="text-xl font-bold text-white">Employee Details</h3>
+                    <button onclick="closeEmployeeModal()" class="text-gray-400 hover:text-gray-300">
                         <i class="fas fa-times text-xl"></i>
                     </button>
                 </div>
@@ -310,12 +355,12 @@
     </div>
 
     <!-- Recommendation Detail Modal -->
-    <div id="recommendationModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50">
+    <div id="recommendationModal" class="fixed inset-0 bg-black bg-opacity-75 hidden z-50">
         <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="bg-white rounded-xl max-w-2xl w-full p-6">
+            <div class="dark-card rounded-xl max-w-2xl w-full p-6">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-bold text-gray-800">Recommendation Details</h3>
-                    <button onclick="closeRecommendationModal()" class="text-gray-400 hover:text-gray-600">
+                    <h3 class="text-xl font-bold text-white">Recommendation Details</h3>
+                    <button onclick="closeRecommendationModal()" class="text-gray-400 hover:text-gray-300">
                         <i class="fas fa-times text-xl"></i>
                     </button>
                 </div>
@@ -349,31 +394,31 @@
                 <div class="space-y-4">
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Employee ID</label>
-                            <p class="text-sm text-gray-900">${employee.emp_id}</p>
+                            <label class="block text-sm font-medium text-gray-400">Employee ID</label>
+                            <p class="text-sm text-white">${employee.emp_id}</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Name</label>
-                            <p class="text-sm text-gray-900">${employee.name}</p>
+                            <label class="block text-sm font-medium text-gray-400">Name</label>
+                            <p class="text-sm text-white">${employee.name}</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Email</label>
-                            <p class="text-sm text-gray-900">${employee.email}</p>
+                            <label class="block text-sm font-medium text-gray-400">Email</label>
+                            <p class="text-sm text-white">${employee.email}</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Role</label>
-                            <p class="text-sm text-gray-900">${employee.role}</p>
+                            <label class="block text-sm font-medium text-gray-400">Role</label>
+                            <p class="text-sm text-white">${employee.role}</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Success Rate</label>
-                            <p class="text-sm text-gray-900">${employee.success_rate}%</p>
+                            <label class="block text-sm font-medium text-gray-400">Success Rate</label>
+                            <p class="text-sm text-white">${employee.success_rate}%</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Tasks Completed</label>
-                            <p class="text-sm text-gray-900">${employee.tasks_completed || 0}</p>
+                            <label class="block text-sm font-medium text-gray-400">Tasks Completed</label>
+                            <p class="text-sm text-white">${employee.tasks_completed || 0}</p>
                         </div>
                     </div>
-                    <div class="flex justify-end space-x-2 pt-4 border-t">
+                    <div class="flex justify-end space-x-2 pt-4 border-t border-gray-700">
                         <a href="/admin/edit_employee/${employee.emp_id}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition duration-300">
                             Edit Employee
                         </a>
@@ -488,20 +533,42 @@
 
         function showNotification(message, type) {
             const notification = document.createElement('div');
-            notification.className = `notification ${type} show`;
+            notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 max-w-md`;
+            
+            // Set styles based on type
+            const styles = {
+                success: 'bg-green-900 border-green-700 text-green-200',
+                error: 'bg-red-900 border-red-700 text-red-200',
+                warning: 'bg-yellow-900 border-yellow-700 text-yellow-200',
+                info: 'bg-blue-900 border-blue-700 text-blue-200'
+            };
+            
+            notification.className += ` ${styles[type]} border`;
             notification.innerHTML = `
                 <div class="flex items-center">
-                    <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'} mr-2"></i>
-                    ${message}
+                    <i class="fas ${type === 'success' ? 'fa-check-circle' : 
+                                   type === 'error' ? 'fa-exclamation-circle' : 
+                                   type === 'warning' ? 'fa-exclamation-triangle' : 
+                                   'fa-info-circle'} mr-2"></i>
+                    <span>${message}</span>
+                    <button class="ml-4" onclick="this.parentElement.parentElement.remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
             `;
             
             document.getElementById('notificationContainer').appendChild(notification);
             
             setTimeout(() => {
+                notification.classList.add('show');
+            }, 100);
+            
+            setTimeout(() => {
                 notification.classList.remove('show');
                 setTimeout(() => {
-                    notification.remove();
+                    if (notification.parentNode) {
+                        notification.remove();
+                    }
                 }, 300);
             }, 3000);
         }
