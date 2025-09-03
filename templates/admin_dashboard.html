@@ -180,7 +180,7 @@
                 </div>
             </div>
 
-            <!-- Active Tasks -->
+            <!-- Active Tasks
             <div class="dark-card rounded-lg shadow p-6 transition-card card-hover fade-in">
                 <div class="flex justify-between items-start">
                     <div>
@@ -195,7 +195,7 @@
                 </div>
             </div>
 
-            <!-- System Health -->
+           
             <div class="dark-card rounded-lg shadow p-6 transition-card card-hover fade-in">
                 <div class="flex justify-between items-start">
                     <div>
@@ -208,7 +208,7 @@
                         <i class="fas fa-heartbeat text-purple-400 text-xl"></i>
                     </div>
                 </div>
-            </div>
+            </div> -->
         </div>
 
         <!-- Main Content Grid -->
@@ -230,8 +230,8 @@
                                 <tr>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">Employee</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">Role</th>
-                                    <!-- <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">Success Rate</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">Tasks</th> -->
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">Success Rate</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">Tasks</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">Actions</th>
                                 </tr>
                             </thead>
@@ -278,9 +278,11 @@
                                             <a href="{{ url_for('edit_employee', emp_id=employee.emp_id) }}" class="text-green-400 hover:text-green-300 transition-colors duration-200">
                                                 <i class="fas fa-edit"></i>
                                             </a>
+                                            {% if employee.role == 'developer' or employee.role == 'human resource' or employee.role == 'hr' %}
                                             <button onclick="deleteEmployee('{{ employee.emp_id }}')" class="text-red-400 hover:text-red-300 transition-colors duration-200">
                                                 <i class="fas fa-trash"></i>
                                             </button>
+                                            {% endif %}
                                         </div>
                                     </td>
                                 </tr>
