@@ -336,11 +336,11 @@
 
                         <!-- Additional Information -->
                         <div class="mt-6">
-                            <label class="block text-sm font-medium text-gray-300 mb-2" for="additional_notes">
+                            <label class="block text-sm font-medium text-gray-300 mb-2" for="notes">
                                 Additional Notes (Optional)
                             </label>
-                            <textarea id="additional_notes" 
-                                      name="additional_notes" 
+                            <textarea id="notes" 
+                                      name="notes" 
                                       rows="4" 
                                       class="dark-input w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                       placeholder="Any additional information about the candidate..."></textarea>
@@ -725,7 +725,7 @@
             const role = document.getElementById('requested_role').value || '';
             const experience = document.getElementById('experience').value || 'Not specified';
             const skills = Array.from(selectedSkills);
-            const notes = document.getElementById('additional_notes').value || 'None';
+            const notes = document.getElementById('notes').value || 'None';
 
             reviewContent.innerHTML = `
                 <div class="bg-gray-800 rounded-lg p-4">

@@ -304,11 +304,11 @@
                                         </div>
                                         {% endif %}
                                         
-                                        {% if rec.additional_notes %}
+                                        {% if rec.notes %}
                                         <div class="mt-2">
-                                            <p class="text-xs text-purple-400">
+                                            <p class="text-xs text-gray-400">
                                                 <i class="fas fa-sticky-note mr-1"></i>
-                                                <span class="notes-preview">{{ rec.additional_notes[:40] }}{% if rec.additional_notes|length > 40 %}...{% endif %}</span>
+                                                <span class="notes-preview">{{ rec.notes[:40] }}{% if rec.notes|length > 10000 %}...{% endif %}</span>
                                             </p>
                                         </div>
                                         {% endif %}
